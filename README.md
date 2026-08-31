@@ -14,7 +14,7 @@ This project is not affiliated with _emporia energy_ company.
 
 * [Emporia Vue](https://emporiaenergy.com "Emporia Energy") Account - Username and password for the Emporia Vue system are required.
 * [Python 3](https://python.org "Python") - With Pip.
-* [InfluxDB 2](https://influxdata.com "InfluxDB") - Host, port, org, bucket, and token are all required.
+* [InfluxDB 2](https://influxdata.com "InfluxDB") - Host, port, org, bucket, and token are all required. [VictoriaMetrics](https://victoriametrics.com "VictoriaMetrics") is supported as an alternative; see [VictoriaMetrics](#victoriametrics) below.
 
 # Influx
 
@@ -56,6 +56,22 @@ docker exec influxdb influx apply -f /var/lib/influxdb2/influx_dashboard.json --
 Replace the `<my-influx-token>` with the All Access Token you generated in the Influx _Load Data -> API Tokens_ screen.
 
 You're now ready to proceed with the Vuegraf configuration and startup.
+
+# VictoriaMetrics
+
+As an alternative to InfluxDB, Vuegraf can write directly to [VictoriaMetrics](https://victoriametrics.com "VictoriaMetrics"), a Prometheus-compatible time series database. Set `influxDb.version` to `victoriametrics` and point `url` at the VictoriaMetrics HTTP API. No bucket, org, or token is required for an unauthenticated instance:
+
+```json
+    "influxDb": {
+        "version": "victoriametrics",
+        "url": "http://my.victoriametrics.hostname:8428"
+    }
+```
+
+The same metric name and tags are used as with InfluxDB, so both backends produce comparable series, such as `energy_usage{account_name="Primary Residence", device_name="Furnace", detailed="False"}`. All other configuration options behave identically. Two optional fields apply only to VictoriaMetrics:
+
+- `metricName` - Overrides the metric name. Defaults to `energy_usage`. When migrating an existing InfluxDB database with `vmctl`, set this to `energy_usage_usage`, since VictoriaMetrics names InfluxDB line protocol data `<measurement>_<field>`.
+- `extraLabels` - Object of static labels added to every series, such as `{"db": "vuegraf"}` to match the `db` label VictoriaMetrics adds when ingesting InfluxDB line protocol. Defaults to none.
 
 # Configuration
 

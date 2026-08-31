@@ -6,14 +6,40 @@
 import datetime
 import influxdb         # InfluxDB v1
 import influxdb_client  # InfluxDB v2
+import json
 import logging
 import pprint
+import requests          # VictoriaMetrics
 
-from vuegraf.config import getConfigValue, getInfluxTag, getInfluxVersion
+from vuegraf.config import (
+  VICTORIA_METRICS_VERSION,
+  getConfigValue,
+  getInfluxTag,
+  getInfluxVersion,
+  getVictoriaMetricsNaming,
+)
 from vuegraf.time import getTimeNow
 
 
 logger = logging.getLogger('vuegraf.influx')
+
+# Points written per request, to avoid sending a single enormous request when a large
+# history backfill accumulates many points. Shared by all backends.
+WRITE_BATCH_SIZE = 5000
+
+# Lookback windows tried in order when locating the last stored sample. The widest matches
+# the InfluxDB backends' 3 week horizon; the narrower ones exist because this query runs per
+# channel on every collection cycle, and a 3 week window over per-second data scans millions
+# of samples per series. In steady state the first window hits.
+VICTORIA_METRICS_LOOKBACK_WINDOWS = ['10m', '6h', '3w']
+
+
+def getVictoriaMetricsTimeoutSecs(config):
+    """VictoriaMetrics requests are made with the 'requests' library, which expects a
+    timeout in seconds, whereas the configured/default timeout follows the InfluxDB
+    client convention of milliseconds."""
+    timeout = config['influxDb']['timeout'] if 'timeout' in config['influxDb'] else 60_000
+    return timeout / 1000
 
 
 def createDataPoint(config, pt):
@@ -39,6 +65,23 @@ def createDataPoint(config, pt):
         dataPoint.time(time=timestamp)
         if addStationField:
             dataPoint.tag('station_name', deviceName)
+    elif influxVersion == VICTORIA_METRICS_VERSION:
+        metricName, extraLabels = getVictoriaMetricsNaming(config)
+        # Seeded with extraLabels so that the labels below always win, and a stray
+        # extraLabels entry can never displace the metric name or a tag.
+        metric = dict(extraLabels)
+        metric['__name__'] = metricName
+        metric['account_name'] = accountName
+        metric['device_name'] = chanName
+        metric[tagName] = detailed
+        if addStationField:
+            metric['station_name'] = deviceName
+        dataPoint = {
+            'metric': metric,
+            # VictoriaMetrics expects millisecond timestamps on the JSON import endpoint.
+            'values': [watts],
+            'timestamps': [int(timestamp.timestamp() * 1000)],
+        }
     else:
         dataPoint = {
             'measurement': 'energy_usage',
@@ -83,6 +126,40 @@ def getLastDBTimeStamp(config, deviceName, chanName, pointType, startTime, stopT
         if len(result) > 0 and len(result[0].records) > 0:
             lastRecord = result[0].records[0]
             timeStr = lastRecord['_time'].isoformat()
+
+    elif influxVersion == VICTORIA_METRICS_VERSION:
+        metricName, extraLabels = getVictoriaMetricsNaming(config)
+        # json.dumps quotes label values, escaping embedded quotes, backslashes and
+        # control characters the way PromQL string literals expect.
+        labelFilters = ['device_name=' + json.dumps(chanName),
+                        tagName + '=' + json.dumps(pointType)]
+        # Scope by extraLabels too, so this cannot match a same-named series written by
+        # some other source into the same VictoriaMetrics.
+        for labelName in sorted(extraLabels):
+            labelFilters.append(labelName + '=' + json.dumps(extraLabels[labelName]))
+        if addStationField:
+            labelFilters.append('station_name=' + json.dumps(deviceName))
+        selector = metricName + '{' + ','.join(labelFilters) + '}'
+        url = config['influxDb']['url'].rstrip('/') + '/api/v1/query'
+        timeoutSecs = getVictoriaMetricsTimeoutSecs(config)
+        for window in VICTORIA_METRICS_LOOKBACK_WINDOWS:
+            # tlast_over_time returns the timestamp of the last raw sample, which is the
+            # MetricsQL equivalent of Influx's last(). Note that timestamp(last_over_time(..))
+            # would instead return the query evaluation time, which is always ~now and would
+            # therefore silently suppress all backfilling.
+            promQuery = 'tlast_over_time(' + selector + '[' + window + '])'
+            logger.debug('VictoriaMetrics Query: %s', promQuery)
+            response = config['influx'].get(url, params={'query': promQuery}, timeout=timeoutSecs)
+            response.raise_for_status()
+            # Indexed rather than .get()-chained on purpose; a well-formed response always
+            # carries these keys, and quietly treating an unexpected payload as "no data"
+            # would trigger the full 7 day rewind on every collection cycle.
+            result = response.json()['data']['result']
+
+            if len(result) > 0:
+                epochSeconds = float(result[0]['value'][1])
+                timeStr = datetime.datetime.fromtimestamp(epochSeconds, tz=datetime.timezone.utc).isoformat()
+                break
 
     else:  # Influx v1
         stationFilter = ""
@@ -185,6 +262,31 @@ def initInfluxConnection(config):
             stop = now.isoformat(timespec='seconds').replace("+00:00", "") + 'Z'
             delete_api.delete(start, stop, '_measurement="energy_usage"', bucket=bucket, org=org)
 
+    elif influxVersion == VICTORIA_METRICS_VERSION:
+        logger.info('Using VictoriaMetrics')
+        url = config['influxDb']['url']
+        influx = requests.Session()
+        influx.verify = sslVerify
+        # Only authenticate to ingress if 'user' entry was provided in config. A missing
+        # 'pass' raises here rather than silently connecting unauthenticated, matching v1.
+        if 'user' in config['influxDb']:
+            influx.auth = (config['influxDb']['user'], config['influxDb']['pass'])
+        if 'token' in config['influxDb']:
+            influx.headers['Authorization'] = 'Bearer ' + config['influxDb']['token']
+
+        if config['args'].resetdatabase:
+            logger.info('Resetting database')
+            metricName, extraLabels = getVictoriaMetricsNaming(config)
+            deleteUrl = url.rstrip('/') + '/api/v1/admin/tsdb/delete_series'
+            # Scoped by extraLabels so that a reset cannot delete same-named series
+            # written into this VictoriaMetrics by another source.
+            selector = '{__name__=' + json.dumps(metricName)
+            for labelName in sorted(extraLabels):
+                selector += ',' + labelName + '=' + json.dumps(extraLabels[labelName])
+            selector += '}'
+            response = influx.post(deleteUrl, params={'match[]': selector}, timeout=(timeout / 1000))
+            response.raise_for_status()
+
     else:
         logger.info('Using InfluxDB version 1')
 
@@ -228,8 +330,16 @@ def writeInfluxPoints(config, usageDataPoints):
             bucket = config['influxDb']['bucket']
             write_api = config['influx'].write_api(write_options=influxdb_client.client.write_api.SYNCHRONOUS)
             write_api.write(bucket=bucket, record=influxPoints)
+        elif influxVersion == VICTORIA_METRICS_VERSION:
+            url = config['influxDb']['url'].rstrip('/') + '/api/v1/import'
+            timeoutSecs = getVictoriaMetricsTimeoutSecs(config)
+            for batchStart in range(0, len(influxPoints), WRITE_BATCH_SIZE):
+                batch = influxPoints[batchStart:batchStart + WRITE_BATCH_SIZE]
+                body = '\n'.join(json.dumps(point) for point in batch)
+                response = config['influx'].post(url, data=body, timeout=timeoutSecs)
+                response.raise_for_status()
         else:
-            config['influx'].write_points(influxPoints, batch_size=5000)
+            config['influx'].write_points(influxPoints, batch_size=WRITE_BATCH_SIZE)
 
 
 def dumpPoints(config, label, usageDataPoints):
@@ -238,5 +348,7 @@ def dumpPoints(config, label, usageDataPoints):
     for point in usageDataPoints:
         if influxVersion == 2:
             logger.debug('  {}'.format(point.to_line_protocol()))
+        elif influxVersion == VICTORIA_METRICS_VERSION:
+            logger.debug('  {}'.format(json.dumps(point)))
         else:
             logger.debug(f'  {pprint.pformat(point)}')

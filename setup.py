@@ -33,6 +33,7 @@ setup(
         'influxdb_client>=1.49.0',
         'pyemvue>=0.18.9',
         'paho-mqtt>=2.1.0',
-        'argparse>= 1.4.0'
+        'argparse>= 1.4.0',
+        'requests>=2.32.0'
     ]
 )

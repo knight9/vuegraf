@@ -3,3 +3,4 @@ influxdb_client >= 1.48.0
 pyemvue >= 0.18.7
 paho-mqtt >= 2.1.0
 argparse >= 1.4.0
+requests >= 2.32.0
