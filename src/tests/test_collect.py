@@ -85,7 +85,7 @@ class TestCollect(TestCase):
 
         # Mock dependencies
         self.patcher_getConfigValue = patch('vuegraf.collect.getConfigValue', side_effect=self._mock_getConfigValue)
-        self.patcher_getInfluxTag = patch('vuegraf.collect.getInfluxTag', return_value=(None, 'Seconds', 'Minutes', 'Hours', 'Days'))
+        self.patcher_getTags = patch('vuegraf.collect.getTags', return_value=(None, 'Seconds', 'Minutes', 'Hours', 'Days'))
         self.patcher_lookupDeviceName = patch('vuegraf.collect.lookupDeviceName', return_value='TestDevice1')
         self.patcher_lookupChannelName = patch('vuegraf.collect.lookupChannelName', side_effect=self._mock_lookupChannelName)
         self.patcher_getLastDBTimeStamp = patch('vuegraf.collect.getLastDBTimeStamp')
@@ -94,7 +94,7 @@ class TestCollect(TestCase):
                                                     side_effect=lambda cfg, dt: dt.replace(hour=0, minute=0, second=0, microsecond=0))
 
         self.mock_getConfigValue = self.patcher_getConfigValue.start()
-        self.mock_getInfluxTag = self.patcher_getInfluxTag.start()
+        self.mock_getTags = self.patcher_getTags.start()
         self.mock_lookupDeviceName = self.patcher_lookupDeviceName.start()
         self.mock_lookupChannelName = self.patcher_lookupChannelName.start()
         self.mock_getLastDBTimeStamp = self.patcher_getLastDBTimeStamp.start()
@@ -103,7 +103,7 @@ class TestCollect(TestCase):
 
     def tearDown(self):
         self.patcher_getConfigValue.stop()
-        self.patcher_getInfluxTag.stop()
+        self.patcher_getTags.stop()
         self.patcher_lookupDeviceName.stop()
         self.patcher_lookupChannelName.stop()
         self.patcher_getLastDBTimeStamp.stop()

@@ -12,8 +12,7 @@ from vuegraf.collect import Point
 from vuegraf.time import getTimeNow
 
 SAMPLE_CONFIG_VM = {
-    'influxDb': {
-        'version': 'victoriametrics',
+    'victoriaMetrics': {
         'url': 'http://localhost:8428',
         'ssl_verify': True,
         'tagName': 'resolution',
@@ -28,9 +27,21 @@ SAMPLE_CONFIG_VM = {
 }
 
 
+def test_get_tags_defaults():
+    """Test getTags falls back to the same defaults as the InfluxDB destination."""
+    assert victoriametrics.getTags({'victoriaMetrics': {}}) == ('detailed', 'True', 'False', 'Hour', 'Day')
+
+
+def test_get_tags_overrides():
+    """Test getTags honours overrides from the victoriaMetrics section."""
+    section = {'tagName': 'resolution', 'tagValue_second': '1s', 'tagValue_minute': '1m',
+               'tagValue_hour': '1h', 'tagValue_day': '1d'}
+    assert victoriametrics.getTags({'victoriaMetrics': section}) == ('resolution', '1s', '1m', '1h', '1d')
+
+
 def test_get_naming_defaults():
     """Test getNaming defaults mirror the InfluxDB measurement name."""
-    metricName, extraLabels = victoriametrics.getNaming({'influxDb': {}})
+    metricName, extraLabels = victoriametrics.getNaming({'victoriaMetrics': {}})
     assert metricName == 'energy_usage'
     assert extraLabels == {}
 
@@ -38,7 +49,7 @@ def test_get_naming_defaults():
 def test_get_naming_overrides():
     """Test getNaming honours overrides from the influxDb config block."""
     metricName, extraLabels = victoriametrics.getNaming(
-        {'influxDb': {'metricName': 'energy_usage_usage', 'extraLabels': {'db': 'vuegraf'}}})
+        {'victoriaMetrics': {'metricName': 'energy_usage_usage', 'extraLabels': {'db': 'vuegraf'}}})
     assert metricName == 'energy_usage_usage'
     assert extraLabels == {'db': 'vuegraf'}
 
@@ -76,7 +87,7 @@ def test_create_data_point_with_station():
 def test_create_data_point_custom_naming():
     """Test the VictoriaMetrics metric name and static labels are overridable."""
     config = copy.deepcopy(SAMPLE_CONFIG_VM)
-    config['influxDb'].update({
+    config['victoriaMetrics'].update({
         'metricName': 'energy_usage_usage',
         'extraLabels': {'db': 'vuegraf', 'site': 'home'},
     })
@@ -91,7 +102,7 @@ def test_create_data_point_custom_naming():
 def test_create_data_point_extra_labels_cannot_clobber():
     """Test an extraLabels entry cannot displace a structural label or the metric name."""
     config = copy.deepcopy(SAMPLE_CONFIG_VM)
-    config['influxDb']['extraLabels'] = {'__name__': 'hijacked', 'device_name': 'hijacked', 'resolution': 'hijacked'}
+    config['victoriaMetrics']['extraLabels'] = {'__name__': 'hijacked', 'device_name': 'hijacked', 'resolution': 'hijacked'}
     timestamp = getTimeNow(datetime.UTC)
     point = victoriametrics.createDataPoint(config, Point('account', 'device', 'channel', 1, timestamp, '1m'))
     assert point['metric']['__name__'] == 'energy_usage'
@@ -106,7 +117,7 @@ def test_get_last_timestamp_no_data_minute():
     mock_response = MagicMock()
     mock_response.json.return_value = {'status': 'success', 'data': {'resultType': 'vector', 'result': []}}
     mock_session.get.return_value = mock_response
-    config['influx'] = mock_session
+    config['victoriaMetricsSession'] = mock_session
 
     now = getTimeNow(datetime.UTC)
     start_time_initial = now - datetime.timedelta(hours=1)
@@ -160,7 +171,7 @@ def test_get_last_timestamp_stops_at_first_matching_window():
         'data': {'resultType': 'vector', 'result': [{'metric': {}, 'value': [epochSeconds, str(epochSeconds)]}]}
     }
     mock_session.get.return_value = mock_response
-    config['influx'] = mock_session
+    config['victoriaMetricsSession'] = mock_session
 
     victoriametrics.getLastTimeStamp(config, 'device', 'channel', '1m', now, now, False)
 
@@ -176,7 +187,7 @@ def test_get_last_timestamp_escapes_label_values():
     mock_response = MagicMock()
     mock_response.json.return_value = {'status': 'success', 'data': {'resultType': 'vector', 'result': []}}
     mock_session.get.return_value = mock_response
-    config['influx'] = mock_session
+    config['victoriaMetricsSession'] = mock_session
 
     now = getTimeNow(datetime.UTC)
     victoriametrics.getLastTimeStamp(config, 'sta"tion', 'chan\\nel', '1m', now, now, False)
@@ -193,7 +204,7 @@ def test_get_last_timestamp_no_data_second():
     mock_response = MagicMock()
     mock_response.json.return_value = {'status': 'success', 'data': {'resultType': 'vector', 'result': []}}
     mock_session.get.return_value = mock_response
-    config['influx'] = mock_session
+    config['victoriaMetricsSession'] = mock_session
 
     now = getTimeNow(datetime.UTC)
     start_time_initial = now - datetime.timedelta(minutes=5)
@@ -229,7 +240,7 @@ def test_get_last_timestamp_recent_data_minute():
         'data': {'resultType': 'vector', 'result': [{'metric': {}, 'value': [epochSeconds, str(epochSeconds)]}]}
     }
     mock_session.get.return_value = mock_response
-    config['influx'] = mock_session
+    config['victoriaMetricsSession'] = mock_session
 
     start_time_initial = now - datetime.timedelta(minutes=2)
     stop_time_initial = now
@@ -254,7 +265,7 @@ def test_get_last_timestamp_with_station():
     mock_response = MagicMock()
     mock_response.json.return_value = {'status': 'success', 'data': {'resultType': 'vector', 'result': []}}
     mock_session.get.return_value = mock_response
-    config['influx'] = mock_session
+    config['victoriaMetricsSession'] = mock_session
 
     now = getTimeNow(datetime.UTC)
     start_time_initial = now - datetime.timedelta(hours=1)
@@ -276,7 +287,7 @@ def test_get_last_timestamp_unsupported_pointtype():
     mock_response = MagicMock()
     mock_response.json.return_value = {'status': 'success', 'data': {'resultType': 'vector', 'result': []}}
     mock_session.get.return_value = mock_response
-    config['influx'] = mock_session
+    config['victoriaMetricsSession'] = mock_session
 
     now = getTimeNow(datetime.UTC)
     start_time_initial = now - datetime.timedelta(hours=1)
@@ -299,12 +310,12 @@ def test_get_last_timestamp_unsupported_pointtype():
 def test_get_last_timestamp_scopes_by_extra_labels():
     """Test configured extraLabels also scope the last-timestamp lookup."""
     config = copy.deepcopy(SAMPLE_CONFIG_VM)
-    config['influxDb']['extraLabels'] = {'db': 'vuegraf'}
+    config['victoriaMetrics']['extraLabels'] = {'db': 'vuegraf'}
     mock_session = MagicMock()
     mock_response = MagicMock()
     mock_response.json.return_value = {'status': 'success', 'data': {'resultType': 'vector', 'result': []}}
     mock_session.get.return_value = mock_response
-    config['influx'] = mock_session
+    config['victoriaMetricsSession'] = mock_session
 
     now = getTimeNow(datetime.UTC)
     victoriametrics.getLastTimeStamp(config, 'device', 'channel', '1m', now, now, False)
@@ -315,12 +326,12 @@ def test_get_last_timestamp_scopes_by_extra_labels():
 def test_get_last_timestamp_custom_timeout():
     """Test getLastDBTimeStamp for VictoriaMetrics converts the configured ms timeout to seconds."""
     config = copy.deepcopy(SAMPLE_CONFIG_VM)
-    config['influxDb']['timeout'] = 120_000
+    config['victoriaMetrics']['timeout'] = 120_000
     mock_session = MagicMock()
     mock_response = MagicMock()
     mock_response.json.return_value = {'status': 'success', 'data': {'resultType': 'vector', 'result': []}}
     mock_session.get.return_value = mock_response
-    config['influx'] = mock_session
+    config['victoriaMetricsSession'] = mock_session
 
     now = getTimeNow(datetime.UTC)
     victoriametrics.getLastTimeStamp(config, 'device', 'channel', '1m', now, now, False)
@@ -340,14 +351,14 @@ def test_init_connection(mock_session_class):
     mock_session_class.assert_called_once_with()
     assert mock_session.verify is True
     mock_session.post.assert_not_called()
-    assert config['influx'] == mock_session
+    assert config['victoriaMetricsSession'] == mock_session
 
 
 @patch('vuegraf.victoriametrics.requests.Session')
 def test_init_connection_defaults_ssl_verify(mock_session_class):
     """Test TLS verification defaults to enabled when ssl_verify is not configured."""
     config = copy.deepcopy(SAMPLE_CONFIG_VM)
-    del config['influxDb']['ssl_verify']
+    del config['victoriaMetrics']['ssl_verify']
     mock_session = MagicMock()
     mock_session_class.return_value = mock_session
 
@@ -360,8 +371,8 @@ def test_init_connection_defaults_ssl_verify(mock_session_class):
 def test_init_connection_with_basic_auth(mock_session_class):
     """Test initInfluxConnection for VictoriaMetrics with basic authentication."""
     config = copy.deepcopy(SAMPLE_CONFIG_VM)
-    config['influxDb']['user'] = 'testuser'
-    config['influxDb']['pass'] = 'testpass'
+    config['victoriaMetrics']['user'] = 'testuser'
+    config['victoriaMetrics']['pass'] = 'testpass'
     mock_session = MagicMock()
     mock_session_class.return_value = mock_session
 
@@ -374,7 +385,7 @@ def test_init_connection_with_basic_auth(mock_session_class):
 def test_init_connection_with_token(mock_session_class):
     """Test initInfluxConnection for VictoriaMetrics with bearer token authentication."""
     config = copy.deepcopy(SAMPLE_CONFIG_VM)
-    config['influxDb']['token'] = 'my-vm-token'
+    config['victoriaMetrics']['token'] = 'my-vm-token'
     mock_session = MagicMock()
     mock_session.headers = {}
     mock_session_class.return_value = mock_session
@@ -402,14 +413,14 @@ def test_init_connection_reset(mock_session_class):
         timeout=60.0
     )
     mock_response.raise_for_status.assert_called_once()
-    assert config['influx'] == mock_session
+    assert config['victoriaMetricsSession'] == mock_session
 
 
 @patch('vuegraf.victoriametrics.requests.Session')
 def test_init_connection_reset_scoped_by_extra_labels(mock_session_class):
     """Test resetdatabase stays scoped to extraLabels, so it cannot delete other sources."""
     config = copy.deepcopy(SAMPLE_CONFIG_VM)
-    config['influxDb']['extraLabels'] = {'db': 'vuegraf'}
+    config['victoriaMetrics']['extraLabels'] = {'db': 'vuegraf'}
     config['args'] = MagicMock(debug=False, dryrun=False, resetdatabase=True)
     mock_session = MagicMock()
     mock_session_class.return_value = mock_session
@@ -426,7 +437,7 @@ def test_write_points(mock_dump_points):
     mock_session = MagicMock()
     mock_response = MagicMock()
     mock_session.post.return_value = mock_response
-    config['influx'] = mock_session
+    config['victoriaMetricsSession'] = mock_session
     timestamp = getTimeNow(datetime.UTC)
     points = [Point('account', 'device', 'channel', 1, timestamp, '1m')]
     influx_points = [victoriametrics.createDataPoint(config, pt) for pt in points]
@@ -447,7 +458,7 @@ def test_write_points_batches(mock_dump_points):
     config = copy.deepcopy(SAMPLE_CONFIG_VM)
     mock_session = MagicMock()
     mock_session.post.return_value = MagicMock()
-    config['influx'] = mock_session
+    config['victoriaMetricsSession'] = mock_session
     timestamp = getTimeNow(datetime.UTC)
     # One point more than a single batch, to force exactly two requests.
     points = [
@@ -469,7 +480,7 @@ def test_write_points_no_points(mock_dump_points):
     """Test writeInfluxPoints issues no VictoriaMetrics request when there are no points."""
     config = copy.deepcopy(SAMPLE_CONFIG_VM)
     mock_session = MagicMock()
-    config['influx'] = mock_session
+    config['victoriaMetricsSession'] = mock_session
 
     victoriametrics.writePoints(config, [])
 
@@ -482,7 +493,7 @@ def test_write_points_dryrun(mock_dump_points):
     config = copy.deepcopy(SAMPLE_CONFIG_VM)
     config['args'] = MagicMock(debug=False, dryrun=True, resetdatabase=False)
     mock_session = MagicMock()
-    config['influx'] = mock_session
+    config['victoriaMetricsSession'] = mock_session
     points = [Point('account', 'device', 'channel', 1, getTimeNow(datetime.UTC), '1m')]
 
     victoriametrics.writePoints(config, points)
@@ -498,7 +509,7 @@ def test_write_points_debug():
     mock_session = MagicMock()
     mock_response = MagicMock()
     mock_session.post.return_value = mock_response
-    config['influx'] = mock_session
+    config['victoriaMetricsSession'] = mock_session
     points = [Point('account', 'device', 'channel', 1, getTimeNow(datetime.UTC), '1m')]
 
     victoriametrics.writePoints(config, points)

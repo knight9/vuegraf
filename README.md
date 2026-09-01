@@ -59,16 +59,15 @@ You're now ready to proceed with the Vuegraf configuration and startup.
 
 # VictoriaMetrics
 
-As an alternative to InfluxDB, Vuegraf can write directly to [VictoriaMetrics](https://victoriametrics.com "VictoriaMetrics"), a Prometheus-compatible time series database. Set `influxDb.version` to `victoriametrics` and point `url` at the VictoriaMetrics HTTP API. No bucket, org, or token is required for an unauthenticated instance:
+As an alternative to InfluxDB, Vuegraf can write directly to [VictoriaMetrics](https://victoriametrics.com "VictoriaMetrics"), a Prometheus-compatible time series database. Replace the `influxDb` section with a `victoriaMetrics` section and point `url` at the VictoriaMetrics HTTP API. Only one of the two may be configured. The MQTT output is unaffected and continues to run alongside either:
 
 ```json
-    "influxDb": {
-        "version": "victoriametrics",
+    "victoriaMetrics": {
         "url": "http://my.victoriametrics.hostname:8428"
     }
 ```
 
-The same metric name and tags are used as with InfluxDB, so both backends produce comparable series, such as `energy_usage{account_name="Primary Residence", device_name="Furnace", detailed="False"}`. All other configuration options behave identically. Two optional fields apply only to VictoriaMetrics:
+The same metric name and tags are used as with InfluxDB, so both destinations produce comparable series, such as `energy_usage{account_name="Primary Residence", device_name="Furnace", detailed="False"}`. The `tagName` and `tagValue_*` options described below are set within this section rather than under `influxDb`. Two further optional fields apply only to VictoriaMetrics:
 
 - `metricName` - Overrides the metric name. Defaults to `energy_usage`. When migrating an existing InfluxDB database with `vmctl`, set this to `energy_usage_usage`, since VictoriaMetrics names InfluxDB line protocol data `<measurement>_<field>`.
 - `extraLabels` - Object of static labels added to every series, such as `{"db": "vuegraf"}` to match the `db` label VictoriaMetrics adds when ingesting InfluxDB line protocol. Defaults to none.

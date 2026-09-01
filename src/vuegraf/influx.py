@@ -97,7 +97,8 @@ def getLastDBTimeStamp(config, deviceName, chanName, pointType, startTime, stopT
         if len(result) > 0:
             timeStr = next(result.get_points())['time']
 
-    return calculateResumeTimeRange(config, timeStr, pointType, startTime, stopTime, fillInMissingData)
+    return calculateResumeTimeRange(config, timeStr, pointType, tagValue_second, tagValue_minute,
+                                    startTime, stopTime, fillInMissingData)
 
 
 def initInfluxConnection(config):

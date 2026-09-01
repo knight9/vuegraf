@@ -7,7 +7,7 @@ import datetime
 import pytz
 
 # Local imports
-from vuegraf.config import getConfigValue, getInfluxTag
+from vuegraf.config import getConfigValue
 
 
 def getTimezone(config):
@@ -53,7 +53,8 @@ def calculateHistoryTimeRange(config, nowLagUTC, startTimeUTC, historyIncrements
     return startTimeUTC, stopTimeUTC
 
 
-def calculateResumeTimeRange(config, timeStr, pointType, startTime, stopTime, fillInMissingData):
+def calculateResumeTimeRange(config, timeStr, pointType, tagValue_second, tagValue_minute,
+                             startTime, stopTime, fillInMissingData):
     """Calculates the time range to request from the Emporia API when resuming collection.
 
     Given the timestamp of the most recent record already stored (timeStr, empty when no
@@ -61,9 +62,10 @@ def calculateResumeTimeRange(config, timeStr, pointType, startTime, stopTime, fi
     fetch. The adjustments applied here are constraints of the Emporia API - how far back
     history is available, and how much can be retrieved in a single call - so they are
     independent of which destination the last record came from.
-    """
-    tagName, tagValue_second, tagValue_minute, tagValue_hour, tagValue_day = getInfluxTag(config)
 
+    The resolution tag values are passed in rather than looked up, since each destination
+    owns its own tag naming.
+    """
     # Depending on version of Influx, the string format for the time is different.
     # So strip out the variable timezone bits (along with any microsecond values)
     if len(timeStr) > 0:

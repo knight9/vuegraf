@@ -8,16 +8,11 @@ import json
 import logging
 import requests
 
-from vuegraf.config import getConfigValue, getInfluxTag
+from vuegraf.config import getConfigValue
 from vuegraf.time import calculateResumeTimeRange
 
 
 logger = logging.getLogger('vuegraf.victoriametrics')
-
-# Selects this destination when used as the 'influxDb.version' config value. Kept as a
-# string to distinguish it from the numeric InfluxDB versions, and to leave room for
-# future VictoriaMetrics variants.
-VICTORIA_METRICS_VERSION = 'victoriametrics'
 
 # Points written per request, to avoid sending a single enormous request when a large
 # history backfill accumulates many points.
@@ -28,6 +23,31 @@ WRITE_BATCH_SIZE = 5000
 # per channel on every collection cycle, and a 3 week window over per-second data scans
 # millions of samples per series. In steady state the first window hits.
 LOOKBACK_WINDOWS = ['10m', '6h', '3w']
+
+
+def getTags(config):
+    """Returns the resolution label name and its per-resolution values.
+
+    Mirrors the InfluxDB destination's tag settings, read from this destination's own
+    config block so each destination owns its naming.
+    """
+    section = config['victoriaMetrics']
+    tagName = 'detailed'
+    if 'tagName' in section:
+        tagName = section['tagName']
+    tagValue_second = 'True'
+    if 'tagValue_second' in section:
+        tagValue_second = section['tagValue_second']
+    tagValue_minute = 'False'
+    if 'tagValue_minute' in section:
+        tagValue_minute = section['tagValue_minute']
+    tagValue_hour = 'Hour'
+    if 'tagValue_hour' in section:
+        tagValue_hour = section['tagValue_hour']
+    tagValue_day = 'Day'
+    if 'tagValue_day' in section:
+        tagValue_day = section['tagValue_day']
+    return tagName, tagValue_second, tagValue_minute, tagValue_hour, tagValue_day
 
 
 def getNaming(config):
@@ -43,11 +63,11 @@ def getNaming(config):
                   VictoriaMetrics adds when ingesting InfluxDB line protocol.
     """
     metricName = 'energy_usage'
-    if 'metricName' in config['influxDb']:
-        metricName = config['influxDb']['metricName']
+    if 'metricName' in config['victoriaMetrics']:
+        metricName = config['victoriaMetrics']['metricName']
     extraLabels = {}
-    if 'extraLabels' in config['influxDb']:
-        extraLabels = config['influxDb']['extraLabels']
+    if 'extraLabels' in config['victoriaMetrics']:
+        extraLabels = config['victoriaMetrics']['extraLabels']
     return metricName, extraLabels
 
 
@@ -55,13 +75,13 @@ def getTimeoutSecs(config):
     """Requests are made with the 'requests' library, which expects a timeout in seconds,
     whereas the configured/default timeout follows the InfluxDB client convention of
     milliseconds."""
-    timeout = config['influxDb']['timeout'] if 'timeout' in config['influxDb'] else 60_000
+    timeout = config['victoriaMetrics']['timeout'] if 'timeout' in config['victoriaMetrics'] else 60_000
     return timeout / 1000
 
 
 def createDataPoint(config, pt):
     """Creates the JSON import structure from a collect.Point."""
-    tagName, tagValue_second, tagValue_minute, tagValue_hour, tagValue_day = getInfluxTag(config)
+    tagName, tagValue_second, tagValue_minute, tagValue_hour, tagValue_day = getTags(config)
     addStationField = getConfigValue(config, 'addStationField')
     metricName, extraLabels = getNaming(config)
 
@@ -85,7 +105,7 @@ def createDataPoint(config, pt):
 
 def getLastTimeStamp(config, deviceName, chanName, pointType, startTime, stopTime, fillInMissingData):
     """Returns the time range to fetch, based on the last sample already stored."""
-    tagName, tagValue_second, tagValue_minute, tagValue_hour, tagValue_day = getInfluxTag(config)
+    tagName, tagValue_second, tagValue_minute, tagValue_hour, tagValue_day = getTags(config)
     addStationField = getConfigValue(config, 'addStationField')
     metricName, extraLabels = getNaming(config)
 
@@ -101,7 +121,7 @@ def getLastTimeStamp(config, deviceName, chanName, pointType, startTime, stopTim
         labelFilters.append('station_name=' + json.dumps(deviceName))
     selector = metricName + '{' + ','.join(labelFilters) + '}'
 
-    url = config['influxDb']['url'].rstrip('/') + '/api/v1/query'
+    url = config['victoriaMetrics']['url'].rstrip('/') + '/api/v1/query'
     timeoutSecs = getTimeoutSecs(config)
     timeStr = ''
     for window in LOOKBACK_WINDOWS:
@@ -111,7 +131,7 @@ def getLastTimeStamp(config, deviceName, chanName, pointType, startTime, stopTim
         # therefore silently suppress all backfilling.
         promQuery = 'tlast_over_time(' + selector + '[' + window + '])'
         logger.debug('VictoriaMetrics Query: %s', promQuery)
-        response = config['influx'].get(url, params={'query': promQuery}, timeout=timeoutSecs)
+        response = config['victoriaMetricsSession'].get(url, params={'query': promQuery}, timeout=timeoutSecs)
         response.raise_for_status()
         # Indexed rather than .get()-chained on purpose; a well-formed response always
         # carries these keys, and quietly treating an unexpected payload as "no data"
@@ -123,40 +143,41 @@ def getLastTimeStamp(config, deviceName, chanName, pointType, startTime, stopTim
             timeStr = datetime.datetime.fromtimestamp(epochSeconds, tz=datetime.timezone.utc).isoformat()
             break
 
-    return calculateResumeTimeRange(config, timeStr, pointType, startTime, stopTime, fillInMissingData)
+    return calculateResumeTimeRange(config, timeStr, pointType, tagValue_second, tagValue_minute,
+                                    startTime, stopTime, fillInMissingData)
 
 
 def initConnection(config):
     logger.info('Using VictoriaMetrics')
 
     sslVerify = True
-    if 'ssl_verify' in config['influxDb']:
-        sslVerify = config['influxDb']['ssl_verify']
-    timeout = config['influxDb']['timeout'] if 'timeout' in config['influxDb'] else 60_000
+    if 'ssl_verify' in config['victoriaMetrics']:
+        sslVerify = config['victoriaMetrics']['ssl_verify']
+    timeout = config['victoriaMetrics']['timeout'] if 'timeout' in config['victoriaMetrics'] else 60_000
 
-    influx = requests.Session()
-    influx.verify = sslVerify
+    session = requests.Session()
+    session.verify = sslVerify
     # Only authenticate to ingress if 'user' entry was provided in config. A missing
     # 'pass' raises here rather than silently connecting unauthenticated.
-    if 'user' in config['influxDb']:
-        influx.auth = (config['influxDb']['user'], config['influxDb']['pass'])
-    if 'token' in config['influxDb']:
-        influx.headers['Authorization'] = 'Bearer ' + config['influxDb']['token']
+    if 'user' in config['victoriaMetrics']:
+        session.auth = (config['victoriaMetrics']['user'], config['victoriaMetrics']['pass'])
+    if 'token' in config['victoriaMetrics']:
+        session.headers['Authorization'] = 'Bearer ' + config['victoriaMetrics']['token']
 
     if config['args'].resetdatabase:
         logger.info('Resetting database')
         metricName, extraLabels = getNaming(config)
-        deleteUrl = config['influxDb']['url'].rstrip('/') + '/api/v1/admin/tsdb/delete_series'
+        deleteUrl = config['victoriaMetrics']['url'].rstrip('/') + '/api/v1/admin/tsdb/delete_series'
         # Scoped by extraLabels so that a reset cannot delete same-named series written
         # into this VictoriaMetrics by another source.
         selector = '{__name__=' + json.dumps(metricName)
         for labelName in sorted(extraLabels):
             selector += ',' + labelName + '=' + json.dumps(extraLabels[labelName])
         selector += '}'
-        response = influx.post(deleteUrl, params={'match[]': selector}, timeout=(timeout / 1000))
+        response = session.post(deleteUrl, params={'match[]': selector}, timeout=(timeout / 1000))
         response.raise_for_status()
 
-    config['influx'] = influx
+    config['victoriaMetricsSession'] = session
 
 
 def writePoints(config, usageDataPoints):
@@ -169,12 +190,12 @@ def writePoints(config, usageDataPoints):
         logger.info('Dryrun mode enabled.  Skipping database write.')
         return
 
-    url = config['influxDb']['url'].rstrip('/') + '/api/v1/import'
+    url = config['victoriaMetrics']['url'].rstrip('/') + '/api/v1/import'
     timeoutSecs = getTimeoutSecs(config)
     for batchStart in range(0, len(dataPoints), WRITE_BATCH_SIZE):
         batch = dataPoints[batchStart:batchStart + WRITE_BATCH_SIZE]
         body = '\n'.join(json.dumps(point) for point in batch)
-        response = config['influx'].post(url, data=body, timeout=timeoutSecs)
+        response = config['victoriaMetricsSession'].post(url, data=body, timeout=timeoutSecs)
         response.raise_for_status()
 
 
