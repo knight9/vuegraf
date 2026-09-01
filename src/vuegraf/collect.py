@@ -13,7 +13,7 @@ from pyemvue.enums import Scale, Unit
 
 from vuegraf.config import getConfigValue, getInfluxTag
 from vuegraf.device import lookupDeviceName, lookupChannelName
-from vuegraf.influx import getLastDBTimeStamp
+from vuegraf.destination import getLastDBTimeStamp
 from vuegraf.time import calculateHistoryTimeRange, convertToLocalDayInUTC
 
 

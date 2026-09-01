@@ -49,42 +49,6 @@ def test_get_influx_version_specified():
     assert config.getInfluxVersion(test_config) == 2
 
 
-def test_get_influx_version_victoriametrics():
-    """Test getInfluxVersion when the VictoriaMetrics version is specified."""
-    test_config = {'influxDb': {'version': 'victoriametrics'}}
-    assert config.getInfluxVersion(test_config) == config.VICTORIA_METRICS_VERSION
-
-
-def test_get_influx_version_victoriametrics_normalized():
-    """Test getInfluxVersion normalizes casing and whitespace for string versions."""
-    test_config = {'influxDb': {'version': '  VictoriaMetrics '}}
-    assert config.getInfluxVersion(test_config) == config.VICTORIA_METRICS_VERSION
-
-
-def test_get_influx_version_unsupported_string():
-    """Test getInfluxVersion rejects an unrecognized string version."""
-    test_config = {'influxDb': {'version': 'victoria'}}
-    with pytest.raises(ValueError, match='Unsupported influxDb version'):
-        config.getInfluxVersion(test_config)
-
-
-def test_get_victoria_metrics_naming_defaults():
-    """Test getVictoriaMetricsNaming defaults mirror the InfluxDB measurement name."""
-    test_config = {'influxDb': {}}
-    metricName, extraLabels = config.getVictoriaMetricsNaming(test_config)
-    assert metricName == 'energy_usage'
-    assert extraLabels == {}
-
-
-def test_get_victoria_metrics_naming_overrides():
-    """Test getVictoriaMetricsNaming honours overrides from the influxDb config block."""
-    test_config = {'influxDb': {'metricName': 'energy_usage_usage',
-                                'extraLabels': {'db': 'vuegraf'}}}
-    metricName, extraLabels = config.getVictoriaMetricsNaming(test_config)
-    assert metricName == 'energy_usage_usage'
-    assert extraLabels == {'db': 'vuegraf'}
-
-
 def test_get_influx_tag_defaults():
     """Test getInfluxTag with default values."""
     test_config = {'influxDb': {}}

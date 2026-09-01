@@ -11,11 +11,6 @@ import logging
 
 logger = logging.getLogger('vuegraf.config')
 
-# Selects the VictoriaMetrics backend when set as the 'influxDb.version' config value.
-# Kept distinct from the integer InfluxDB versions (1, 2) to avoid confusion with the
-# separate, unrelated InfluxDB 3.x product, which is not supported by Vuegraf.
-VICTORIA_METRICS_VERSION = 'victoriametrics'
-
 
 def setConfigDefault(config, key, value):
     if key not in config:
@@ -27,41 +22,10 @@ def getConfigValue(config, key):
 
 
 def getInfluxVersion(config):
-    """Returns the configured database version: 1 or 2 for InfluxDB, or
-    VICTORIA_METRICS_VERSION for VictoriaMetrics."""
     influxVersion = 1
     if 'version' in config['influxDb']:
         influxVersion = config['influxDb']['version']
-    if isinstance(influxVersion, str):
-        # Accept any casing and surrounding whitespace, but reject an unrecognized value
-        # outright. Falling through to the InfluxDB v1 code path on a typo would instead
-        # fail later with a confusing KeyError on an unrelated config field.
-        influxVersion = influxVersion.strip().lower()
-        if influxVersion != VICTORIA_METRICS_VERSION:
-            raise ValueError("Unsupported influxDb version: {}; expected 1, 2, or '{}'".format(
-                             config['influxDb']['version'], VICTORIA_METRICS_VERSION))
     return influxVersion
-
-
-def getVictoriaMetricsNaming(config):
-    """Returns the metric name and any static labels for the VictoriaMetrics backend.
-
-    The default mirrors the InfluxDB measurement name, and the tag names emitted
-    alongside it are the same, so both backends produce comparable series.
-
-    metricName  - overrides the metric name. Users migrating an existing InfluxDB
-                  database with vmctl will want 'energy_usage_usage', since
-                  VictoriaMetrics names line protocol data <measurement>_<field>.
-    extraLabels - static labels added to every series, such as the 'db' label
-                  VictoriaMetrics adds when ingesting InfluxDB line protocol.
-    """
-    metricName = 'energy_usage'
-    if 'metricName' in config['influxDb']:
-        metricName = config['influxDb']['metricName']
-    extraLabels = {}
-    if 'extraLabels' in config['influxDb']:
-        extraLabels = config['influxDb']['extraLabels']
-    return metricName, extraLabels
 
 
 def getInfluxTag(config):
