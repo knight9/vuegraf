@@ -59,7 +59,7 @@ You're now ready to proceed with the Vuegraf configuration and startup.
 
 # VictoriaMetrics
 
-As an alternative to InfluxDB, Vuegraf can write directly to [VictoriaMetrics](https://victoriametrics.com "VictoriaMetrics"), a Prometheus-compatible time series database. Replace the `influxDb` section with a `victoriaMetrics` section and point `url` at the VictoriaMetrics HTTP API. Only one of the two may be configured. The MQTT output is unaffected and continues to run alongside either:
+As an alternative to InfluxDB, Vuegraf can write directly to [VictoriaMetrics](https://victoriametrics.com "VictoriaMetrics"), a Prometheus-compatible time series database. Add a `victoriaMetrics` section and point `url` at the VictoriaMetrics HTTP API. It may either replace the `influxDb` section or sit alongside it - if both are configured, every data point is written to both, with each receiving only what it is missing. The MQTT output is unaffected and continues to run alongside either:
 
 ```json
     "victoriaMetrics": {

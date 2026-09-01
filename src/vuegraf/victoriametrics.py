@@ -81,7 +81,7 @@ def getTimeoutSecs(config):
 
 def createDataPoint(config, pt):
     """Creates the JSON import structure from a collect.Point."""
-    tagName, tagValue_second, tagValue_minute, tagValue_hour, tagValue_day = getTags(config)
+    tagName, _, _, _, _ = getTags(config)
     addStationField = getConfigValue(config, 'addStationField')
     metricName, extraLabels = getNaming(config)
 
@@ -105,7 +105,7 @@ def createDataPoint(config, pt):
 
 def getLastTimeStamp(config, deviceName, chanName, pointType, startTime, stopTime, fillInMissingData):
     """Returns the time range to fetch, based on the last sample already stored."""
-    tagName, tagValue_second, tagValue_minute, tagValue_hour, tagValue_day = getTags(config)
+    tagName, tagValue_second, tagValue_minute, _, _ = getTags(config)
     addStationField = getConfigValue(config, 'addStationField')
     metricName, extraLabels = getNaming(config)
 
@@ -182,7 +182,7 @@ def initConnection(config):
 
 def writePoints(config, usageDataPoints):
     """Writes a list of collect.Point objects to VictoriaMetrics."""
-    logger.info('Submitting datapoints to database; points={}'.format(len(usageDataPoints)))
+    logger.info('Submitting datapoints to VictoriaMetrics database; points={}'.format(len(usageDataPoints)))
     dataPoints = [createDataPoint(config, pt) for pt in usageDataPoints]
     if config['args'].debug:
         dumpPoints(config, 'Sending to database', dataPoints)

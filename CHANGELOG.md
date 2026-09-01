@@ -5,7 +5,7 @@
 
 ## New features
 - Added image to GHCR - @jertel
-- Added support for writing directly to VictoriaMetrics as an alternative to InfluxDB, configured via a `victoriaMetrics` section - @clara-j
+- Added support for writing directly to VictoriaMetrics, configured via a `victoriaMetrics` section. May replace InfluxDB or run alongside it, in which case each database receives only the data points it is missing - @clara-j
 
 ## Other changes
 - Added missing DetailedDataEnabled variable values: Day, Hour - @jertel
