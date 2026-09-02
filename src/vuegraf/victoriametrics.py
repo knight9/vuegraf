@@ -25,6 +25,16 @@ WRITE_BATCH_SIZE = 5000
 LOOKBACK_WINDOWS = ['10m', '6h', '3w']
 
 
+def validateConfig(config):
+    """Raises unless this destination's config section is usable.
+    """
+    section = config['victoriaMetrics']
+    if not section.get('url'):
+        raise ValueError('victoriaMetrics: a url entry is required.')
+    if ('user' in section) != ('pass' in section):
+        raise ValueError('victoriaMetrics: user and pass must be provided together.')
+
+
 def getTags(config):
     """Returns the resolution label name and its per-resolution values.
 
@@ -153,12 +163,10 @@ def initConnection(config):
     sslVerify = True
     if 'ssl_verify' in config['victoriaMetrics']:
         sslVerify = config['victoriaMetrics']['ssl_verify']
-    timeout = config['victoriaMetrics']['timeout'] if 'timeout' in config['victoriaMetrics'] else 60_000
 
     session = requests.Session()
     session.verify = sslVerify
-    # Only authenticate to ingress if 'user' entry was provided in config. A missing
-    # 'pass' raises here rather than silently connecting unauthenticated.
+    # Only authenticate to ingress if 'user' entry was provided in config;
     if 'user' in config['victoriaMetrics']:
         session.auth = (config['victoriaMetrics']['user'], config['victoriaMetrics']['pass'])
     if 'token' in config['victoriaMetrics']:
@@ -174,7 +182,7 @@ def initConnection(config):
         for labelName in sorted(extraLabels):
             selector += ',' + labelName + '=' + json.dumps(extraLabels[labelName])
         selector += '}'
-        response = session.post(deleteUrl, params={'match[]': selector}, timeout=(timeout / 1000))
+        response = session.post(deleteUrl, params={'match[]': selector}, timeout=getTimeoutSecs(config))
         response.raise_for_status()
 
     config['victoriaMetricsSession'] = session

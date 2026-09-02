@@ -1,16 +1,18 @@
 # Copyright (c) Jason Ertel (jertel).
 # This file is part of the Vuegraf project and is made available under the MIT License.
 
-# Routes database operations to the configured databases. Contains no database specific
+# Routes output operations to whatever is configured. Contains no destination specific
 # logic of its own; each is implemented in its own module and reads its own config
 # section. More than one may be configured, in which case every data point is offered to
-# each and filtered to what that database is missing.
+# each and filtered to what that destination is missing.
 #
-# The MQTT output is not routed here - it is additive and runs alongside whichever
-# databases are configured.
+# Destinations that record a resume point - the databases - are asked where to resume
+# from and are sent only what they are missing. MQTT keeps no such state, so it is never
+# consulted about resuming and always receives the full set of points.
 
 from vuegraf import influx, victoriametrics
 from vuegraf.config import getInfluxTag, getInfluxVersion
+from vuegraf.mqtt import initMqttConnectionIfConfigured, publishMqttMessagesIfConnected, stopMqttIfConnected
 
 
 # Versions served by the InfluxDB destination.
@@ -19,6 +21,7 @@ INFLUX_VERSIONS = [1, 2]
 # Config section names, also used to key the per-database resume state.
 INFLUX = 'influxDb'
 VICTORIA_METRICS = 'victoriaMetrics'
+MQTT = 'mqtt'
 
 
 def usesInflux(config):
@@ -31,12 +34,20 @@ def usesVictoriaMetrics(config):
     return bool(config.get(VICTORIA_METRICS))
 
 
+def usesMqtt(config):
+    """Returns True when an MQTT output is configured."""
+    return bool(config.get(MQTT))
+
+
 def validateDestination(config):
     """Raises unless at least one supported database is correctly configured.
 
-    Each is matched on the presence of its own config section, following the pattern used
-    by the MQTT output. Configuring more than one is supported; every database then
+    Each is matched on the presence of its own config section.
+    Configuring more than one is supported; every database then
     receives the same data points, filtered to whatever each is missing.
+
+    Called once from initConnection, so that a configuration mistake is reported at
+    startup rather than partway through the first collection cycle.
     """
     if not usesInflux(config) and not usesVictoriaMetrics(config):
         raise ValueError('No database configured; expected an influxDb or '
@@ -44,6 +55,8 @@ def validateDestination(config):
     if usesInflux(config) and getInfluxVersion(config) not in INFLUX_VERSIONS:
         raise ValueError('Unsupported influxDb version: {}; expected one of {}'.format(
                          getInfluxVersion(config), INFLUX_VERSIONS))
+    if usesVictoriaMetrics(config):
+        victoriametrics.validateConfig(config)
     if usesInflux(config) and usesVictoriaMetrics(config):
         # Collection stamps the resolution value onto every data point before any database
         # sees it, so a single value has to satisfy both. tagName is excluded: each
@@ -58,9 +71,8 @@ def getTags(config):
 
     Collection stamps this value onto every data point before any database sees it, so it
     is resolved here rather than read from a fixed config section. When both databases are
-    configured their tagValue_* settings are validated to be identical.
+    configured their tagValue_* settings were validated at startup to be identical.
     """
-    validateDestination(config)
     if usesVictoriaMetrics(config):
         return victoriametrics.getTags(config)
     return getInfluxTag(config)
@@ -85,8 +97,6 @@ def getLastDBTimeStamp(config, deviceName, chanName, pointType, startTime, stopT
     Emporia request covers whichever database is furthest behind; writeDataPoints then
     trims the result per database.
     """
-    validateDestination(config)
-
     windows = {}
     if usesInflux(config):
         windows[INFLUX] = influx.getLastDBTimeStamp(config, deviceName, chanName, pointType,
@@ -147,12 +157,21 @@ def initConnection(config):
         influx.initInfluxConnection(config)
     if usesVictoriaMetrics(config):
         victoriametrics.initConnection(config)
+    if usesMqtt(config):
+        initMqttConnectionIfConfigured(config)
 
 
 def writeDataPoints(config, usageDataPoints):
-    validateDestination(config)
     if usesInflux(config):
         influx.writeInfluxPoints(config, pointsMissingFrom(config, INFLUX, usageDataPoints))
     if usesVictoriaMetrics(config):
         victoriametrics.writePoints(config, pointsMissingFrom(config, VICTORIA_METRICS, usageDataPoints))
+    # Records no resume point, so it is offered every point and does its own filtering.
+    if usesMqtt(config):
+        publishMqttMessagesIfConnected(config, usageDataPoints)
     getResumeState(config).clear()
+
+
+def closeConnection(config):
+    if usesMqtt(config):
+        stopMqttIfConnected(config)

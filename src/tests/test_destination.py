@@ -26,6 +26,10 @@ def bothConfig():
     return dict(influxConfig(), **vmConfig())
 
 
+def withMqtt(config):
+    return dict(config, mqtt={'host': 'localhost'})
+
+
 def point(chanName, timestamp, detailed='False', deviceName='device'):
     return Point('account', deviceName, chanName, 1.0, timestamp, detailed)
 
@@ -48,10 +52,17 @@ def test_uses_victoria_metrics_when_section_present():
     assert destination.usesVictoriaMetrics(influxConfig()) is False
 
 
-def test_empty_section_does_not_select_a_database():
+def test_uses_mqtt_when_section_present():
+    """Test the MQTT output is selected the same way the databases are."""
+    assert destination.usesMqtt(withMqtt(influxConfig())) is True
+    assert destination.usesMqtt(influxConfig()) is False
+
+
+def test_empty_section_does_not_select_a_destination():
     """Test an empty section is treated as absent, matching the MQTT output's behaviour."""
     assert destination.usesInflux({'influxDb': {}}) is False
     assert destination.usesVictoriaMetrics({'victoriaMetrics': {}}) is False
+    assert destination.usesMqtt({'mqtt': {}}) is False
 
 
 # --- Test validateDestination ---
@@ -126,12 +137,6 @@ def test_get_tags_routes_to_influx():
     tagName, tagValue_second, _, _, _ = destination.getTags(config)
     assert tagName == 'granularity'
     assert tagValue_second == 'sec'
-
-
-def test_get_tags_rejects_no_database():
-    """Test tag lookup fails when no database is configured."""
-    with pytest.raises(ValueError, match='No database configured'):
-        destination.getTags({})
 
 
 # --- Test getLastDBTimeStamp ---
@@ -350,11 +355,11 @@ def test_write_clears_resume_state(mock_influx, mock_vm):
     assert destination.getResumeState(config) == {}
 
 
-# --- Test every entry point validates ---
+# --- Test startup validation ---
 
 @patch('vuegraf.destination.victoriametrics')
 @patch('vuegraf.destination.influx')
-def test_init_rejects_misconfiguration(mock_influx, mock_vm):
+def test_init_rejects_no_database(mock_influx, mock_vm):
     """Test initConnection validates before connecting anything."""
     with pytest.raises(ValueError, match='No database configured'):
         destination.initConnection({})
@@ -364,19 +369,77 @@ def test_init_rejects_misconfiguration(mock_influx, mock_vm):
 
 @patch('vuegraf.destination.victoriametrics')
 @patch('vuegraf.destination.influx')
-def test_write_rejects_misconfiguration(mock_influx, mock_vm):
-    """Test writeDataPoints validates before writing anywhere."""
+def test_init_rejects_unsupported_influx_version(mock_influx, mock_vm):
+    """Test a bad version is reported at startup, not on the first write."""
     with pytest.raises(ValueError, match='Unsupported influxDb version'):
-        destination.writeDataPoints(influxConfig(3), [])
-    mock_influx.writeInfluxPoints.assert_not_called()
-    mock_vm.writePoints.assert_not_called()
+        destination.initConnection(influxConfig(3))
+    mock_influx.initInfluxConnection.assert_not_called()
 
 
+def test_init_rejects_an_unusable_victoria_metrics_section():
+    """Test the VictoriaMetrics module validates its own section at startup.
+
+    Left unmocked so the real check runs; the router only delegates.
+    """
+    with pytest.raises(ValueError, match='url entry is required'):
+        destination.initConnection({'victoriaMetrics': {'timeout': 1000}})
+
+
+# --- Test MQTT, which records no resume point ---
+
+@patch('vuegraf.destination.initMqttConnectionIfConfigured')
 @patch('vuegraf.destination.victoriametrics')
 @patch('vuegraf.destination.influx')
-def test_get_last_db_timestamp_rejects_misconfiguration(mock_influx, mock_vm):
-    """Test getLastDBTimeStamp validates before querying anything."""
-    with pytest.raises(ValueError, match='No database configured'):
-        destination.getLastDBTimeStamp({}, 'd', 'c', 'False', utc(0), utc(0), False)
-    mock_influx.getLastDBTimeStamp.assert_not_called()
-    mock_vm.getLastTimeStamp.assert_not_called()
+def test_init_also_connects_mqtt(mock_influx, mock_vm, mock_initMqtt):
+    """Test the MQTT output is set up alongside the databases."""
+    config = withMqtt(influxConfig())
+    destination.initConnection(config)
+    mock_initMqtt.assert_called_once_with(config)
+
+
+@patch('vuegraf.destination.publishMqttMessagesIfConnected')
+@patch('vuegraf.destination.victoriametrics')
+@patch('vuegraf.destination.influx')
+def test_write_publishes_every_point_to_mqtt(mock_influx, mock_vm, mock_publish):
+    """Test MQTT receives the full batch, not a per-database trimmed share.
+
+    It keeps no resume point, so there is nothing to trim against; it does its own
+    filtering when publishing.
+    """
+    mock_vm.getTags.return_value = DEFAULT_TAGS
+    config = withMqtt(bothConfig())
+    destination.getResumeState(config).update({
+        ('influxDb', 'device', 'channel', 'False'): (utc(3), True),
+        ('victoriaMetrics', 'device', 'channel', 'False'): (utc(1), True),
+    })
+    points = [point('channel', utc(1)), point('channel', utc(2)), point('channel', utc(3))]
+
+    destination.writeDataPoints(config, points)
+
+    # InfluxDB is trimmed to what it is missing, while MQTT is offered everything.
+    assert mock_influx.writeInfluxPoints.call_args[0][1] == [points[2]]
+    mock_publish.assert_called_once_with(config, points)
+
+
+@patch('vuegraf.destination.stopMqttIfConnected')
+def test_close_disconnects_mqtt(mock_stopMqtt):
+    """Test shutdown is routed here too, so the caller has a single entry point."""
+    config = withMqtt(influxConfig())
+    destination.closeConnection(config)
+    mock_stopMqtt.assert_called_once_with(config)
+
+
+@patch('vuegraf.destination.stopMqttIfConnected')
+@patch('vuegraf.destination.publishMqttMessagesIfConnected')
+@patch('vuegraf.destination.initMqttConnectionIfConfigured')
+@patch('vuegraf.destination.victoriametrics')
+@patch('vuegraf.destination.influx')
+def test_mqtt_is_skipped_when_not_configured(mock_influx, mock_vm, mock_initMqtt, mock_publish, mock_stopMqtt):
+    """Test an unconfigured MQTT output is not called at all, as for the databases."""
+    config = influxConfig()
+    destination.initConnection(config)
+    destination.writeDataPoints(config, [])
+    destination.closeConnection(config)
+    mock_initMqtt.assert_not_called()
+    mock_publish.assert_not_called()
+    mock_stopMqtt.assert_not_called()

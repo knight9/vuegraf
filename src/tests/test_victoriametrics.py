@@ -4,6 +4,7 @@
 import copy
 import datetime
 import json
+import pytest
 from unittest.mock import MagicMock, patch
 
 # Local imports
@@ -25,6 +26,33 @@ SAMPLE_CONFIG_VM = {
     'detailedIntervalSecs': 3600,
     'args': MagicMock(debug=False, dryrun=False, resetdatabase=False)
 }
+
+
+def test_validate_config_accepts_a_usable_section():
+    """Test a section carrying a url, with or without credentials, is accepted."""
+    victoriametrics.validateConfig(SAMPLE_CONFIG_VM)
+    victoriametrics.validateConfig({'victoriaMetrics': {'url': 'http://localhost:8428',
+                                                        'user': 'vuegraf', 'pass': 'secret'}})
+
+
+def test_validate_config_requires_a_url():
+    """Test a missing url is reported plainly, rather than as a KeyError mid-request."""
+    with pytest.raises(ValueError, match='url entry is required'):
+        victoriametrics.validateConfig({'victoriaMetrics': {}})
+    with pytest.raises(ValueError, match='url entry is required'):
+        victoriametrics.validateConfig({'victoriaMetrics': {'url': ''}})
+
+
+def test_validate_config_requires_credentials_in_pairs():
+    """Test a half-configured credential is rejected either way round.
+
+    A user without a pass would otherwise raise a KeyError while building the session, and
+    a pass without a user would be silently ignored and connect unauthenticated.
+    """
+    with pytest.raises(ValueError, match='user and pass must be provided together'):
+        victoriametrics.validateConfig({'victoriaMetrics': {'url': 'http://x', 'user': 'vuegraf'}})
+    with pytest.raises(ValueError, match='user and pass must be provided together'):
+        victoriametrics.validateConfig({'victoriaMetrics': {'url': 'http://x', 'pass': 'secret'}})
 
 
 def test_get_tags_defaults():
