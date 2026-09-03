@@ -11,9 +11,9 @@ from typing import Union
 
 from pyemvue.enums import Scale, Unit
 
-from vuegraf.config import getConfigValue, getInfluxTag
+from vuegraf.config import getConfigValue
 from vuegraf.device import lookupDeviceName, lookupChannelName
-from vuegraf.influx import getLastDBTimeStamp
+from vuegraf.destination import getLastDBTimeStamp, getTags
 from vuegraf.time import calculateHistoryTimeRange, convertToLocalDayInUTC
 
 
@@ -73,7 +73,7 @@ def extractDataPoints(config, account, device, stopTimeUTC, collectDetails, usag
     accountName = account['name']
     detailedDataEnabled = getConfigValue(config, 'detailedDataEnabled')
     detailedSecondsEnabled = detailedDataEnabled and getConfigValue(config, 'detailedDataSecondsEnabled')
-    _, tagValue_second, tagValue_minute, tagValue_hour, tagValue_day = getInfluxTag(config)
+    _, tagValue_second, tagValue_minute, tagValue_hour, tagValue_day = getTags(config)
     excludedDetailChannelNumbers = ['Balance', 'TotalUsage']
     minutesInAnHour = 60
     secondsInAMinute = 60
@@ -237,7 +237,7 @@ def collectUsage(config, account, startTimeUTC, stopTimeUTC, collectDetails, usa
 
     The usageDataPoints list is modified in place, appending Points.
     """
-    _, _, _, tagValue_hour, tagValue_day = getInfluxTag(config)
+    _, _, _, tagValue_hour, tagValue_day = getTags(config)
     if scale == Scale.HOUR.value:
         pointType = tagValue_hour
     elif scale == Scale.DAY.value:

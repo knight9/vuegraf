@@ -10,7 +10,7 @@ import logging
 import pprint
 
 from vuegraf.config import getConfigValue, getInfluxTag, getInfluxVersion
-from vuegraf.time import getTimeNow
+from vuegraf.time import calculateResumeTimeRange, getTimeNow
 
 
 logger = logging.getLogger('vuegraf.influx')
@@ -97,62 +97,8 @@ def getLastDBTimeStamp(config, deviceName, chanName, pointType, startTime, stopT
         if len(result) > 0:
             timeStr = next(result.get_points())['time']
 
-    # Depending on version of Influx, the string format for the time is different.
-    # So strip out the variable timezone bits (along with any microsecond values)
-    if len(timeStr) > 0:
-        timeStr = timeStr[:19] + 'Z'
-
-        # Convert the timeStr into an aware datetime object.
-        dbLastRecordTime = datetime.datetime.strptime(timeStr, '%Y-%m-%dT%H:%M:%S%z').replace(tzinfo=datetime.timezone.utc)
-
-        if pointType == tagValue_minute:
-            if dbLastRecordTime < (stopTime - datetime.timedelta(minutes=2, seconds=stopTime.second)):
-                fillInMissingData = True
-                startTime = dbLastRecordTime + datetime.timedelta(minutes=1)
-                # Can only back a maximum of 7 days for minute data.
-                # So if last record in DB exceeds 7 days, set the startTime to be 7 days ago.
-                if int((stopTime - startTime).total_seconds()) > 604800:      # 7 Days
-                    startTime = stopTime - datetime.timedelta(minutes=10080)  # 7 Days
-
-                # Can only get a maximum of 12 hours worth of minute data in a single API call.
-                # If more than 12 hours worth is needed, get data in batches; set stopTime to be
-                # 12 hours more than the starttime
-                if int((stopTime - startTime).total_seconds()) > 43200:       # 12 Hours
-                    stopTime = startTime + datetime.timedelta(minutes=720)    # 12 Hours
-
-        if pointType == tagValue_second:
-            if dbLastRecordTime < (startTime - datetime.timedelta(seconds=2)):
-                fillInMissingData = True
-                startTime = (dbLastRecordTime + datetime.timedelta(seconds=1)).replace(microsecond=0)
-                # Adjust start or stop times if backfill interval exceeds 1 hour
-                if (int((stopTime - startTime).total_seconds()) > 3600):
-                    detailedIntervalSecs = getConfigValue(config, 'detailedIntervalSecs')
-                    # Can never get more than 1 hour of historical second data if detailedIntervalSecs
-                    # is set to greater than 1h.  Set backfill period to be just the past one hour in that case.
-                    if (detailedIntervalSecs > 3600):
-                        # 1 Hour max since detailedIntervalSecs is more than 1 hour
-                        startTime = stopTime - datetime.timedelta(seconds=3600)
-                    else:
-                        # Can only backfill a maximum of 3 hours for second data.
-                        # So if last record in DB exceeds 3 hours, set the startTime to be 3 hours ago.
-                        if int((stopTime - startTime).total_seconds()) > 10800:        # 3 Hours
-                            startTime = stopTime - datetime.timedelta(seconds=10800)   # 3 Hours
-
-                        # Can only get a maximum of 1 hour's worth of second data in a single API call.
-                        # If more than 1 hour's worth is needed, get data in batches; set stopTime to be
-                        # 1 hour more than the starttime
-                        stopTime = startTime + datetime.timedelta(seconds=3600)  # limit to 1 hour batch
-    else:
-        if pointType == tagValue_minute:
-            startTime = startTime - datetime.timedelta(days=7)
-            stopTime = startTime + datetime.timedelta(hours=12)
-            fillInMissingData = True
-        elif pointType == tagValue_second:
-            startTime = startTime - datetime.timedelta(hours=3)
-            stopTime = startTime + datetime.timedelta(hours=1)
-            fillInMissingData = True
-
-    return startTime, stopTime, fillInMissingData
+    return calculateResumeTimeRange(config, timeStr, pointType, tagValue_second, tagValue_minute,
+                                    startTime, stopTime, fillInMissingData)
 
 
 def initInfluxConnection(config):

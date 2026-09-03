@@ -36,10 +36,10 @@ class TestVuegraf(unittest.TestCase):
     """Test suite for the main vuegraf application logic."""
 
     @patch('vuegraf.vuegraf.initConfig')
-    @patch('vuegraf.vuegraf.initInfluxConnection')
+    @patch('vuegraf.vuegraf.initConnection')
     @patch('vuegraf.vuegraf.initDeviceAccount')
     @patch('vuegraf.vuegraf.collectUsage')
-    @patch('vuegraf.vuegraf.writeInfluxPoints')
+    @patch('vuegraf.vuegraf.writeDataPoints')
     @patch('vuegraf.vuegraf.getTimeNow')
     @patch('vuegraf.vuegraf.getCurrentHourUTC')
     @patch('vuegraf.vuegraf.getCurrentDayLocal')
@@ -95,10 +95,10 @@ class TestVuegraf(unittest.TestCase):
         mock_logger.info.assert_any_call('Finished')
 
     @patch('vuegraf.vuegraf.initConfig')
-    @patch('vuegraf.vuegraf.initInfluxConnection')
+    @patch('vuegraf.vuegraf.initConnection')
     @patch('vuegraf.vuegraf.initDeviceAccount')
     @patch('vuegraf.vuegraf.collectHistoryUsage')  # Mock history collection
-    @patch('vuegraf.vuegraf.writeInfluxPoints')
+    @patch('vuegraf.vuegraf.writeDataPoints')
     @patch('vuegraf.vuegraf.getTimeNow')
     @patch('vuegraf.vuegraf.getCurrentHourUTC')
     @patch('vuegraf.vuegraf.getCurrentDayLocal')
@@ -165,10 +165,10 @@ class TestVuegraf(unittest.TestCase):
         mock_logger.info.assert_any_call(f'Loading historical data; historyDays={history_days}')
 
     @patch('vuegraf.vuegraf.initConfig')
-    @patch('vuegraf.vuegraf.initInfluxConnection')
+    @patch('vuegraf.vuegraf.initConnection')
     @patch('vuegraf.vuegraf.initDeviceAccount')
     @patch('vuegraf.vuegraf.collectUsage')
-    @patch('vuegraf.vuegraf.writeInfluxPoints')
+    @patch('vuegraf.vuegraf.writeDataPoints')
     @patch('vuegraf.vuegraf.getTimeNow')
     @patch('vuegraf.vuegraf.getCurrentHourUTC')
     @patch('vuegraf.vuegraf.getCurrentDayLocal')
@@ -243,7 +243,7 @@ class TestVuegraf(unittest.TestCase):
         self.assertEqual(mock_init_influx.call_count, 1)
         # initDeviceAccount called once per loop iteration
         self.assertEqual(mock_init_device.call_count, 2)
-        # writeInfluxPoints called once per loop iteration
+        # writeDataPoints called once per loop iteration
         self.assertEqual(mock_write_points.call_count, 2)
         # pauseEvent.wait called once per loop iteration
         self.assertEqual(mock_pause_event.wait.call_count, 2)
@@ -294,10 +294,10 @@ class TestVuegraf(unittest.TestCase):
         self.assertIsNone(day_call_l2[6])  # detailedStartTimeUTC = None
 
     @patch('vuegraf.vuegraf.initConfig')
-    @patch('vuegraf.vuegraf.initInfluxConnection')
+    @patch('vuegraf.vuegraf.initConnection')
     @patch('vuegraf.vuegraf.initDeviceAccount')
     @patch('vuegraf.vuegraf.collectUsage')  # Mock to raise exception
-    @patch('vuegraf.vuegraf.writeInfluxPoints')
+    @patch('vuegraf.vuegraf.writeDataPoints')
     @patch('vuegraf.vuegraf.getTimeNow')
     @patch('vuegraf.vuegraf.getCurrentHourUTC')
     @patch('vuegraf.vuegraf.getCurrentDayLocal')
@@ -346,7 +346,7 @@ class TestVuegraf(unittest.TestCase):
         mock_init_influx.assert_called_once()
         mock_init_device.assert_called_once()
         mock_collect_usage.assert_called_once()  # Should still be called once
-        # writeInfluxPoints should still be called, even if collection failed for one account
+        # writeDataPoints should still be called, even if collection failed for one account
         # (assuming it might have collected data before the exception or for other accounts if multiple were present)
         # In this test setup, it's called with an empty list.
         mock_write_points.assert_called_once_with(test_config, [])
@@ -357,10 +357,10 @@ class TestVuegraf(unittest.TestCase):
         mock_print_exc.assert_called_once()
 
     @patch('vuegraf.vuegraf.initConfig')
-    @patch('vuegraf.vuegraf.initInfluxConnection')
+    @patch('vuegraf.vuegraf.initConnection')
     @patch('vuegraf.vuegraf.initDeviceAccount')
     @patch('vuegraf.vuegraf.collectUsage')
-    @patch('vuegraf.vuegraf.writeInfluxPoints')
+    @patch('vuegraf.vuegraf.writeDataPoints')
     @patch('vuegraf.vuegraf.getTimeNow')
     @patch('vuegraf.vuegraf.getCurrentHourUTC')
     @patch('vuegraf.vuegraf.getCurrentDayLocal')
@@ -429,10 +429,10 @@ class TestVuegraf(unittest.TestCase):
         self.assertIn('collectDetails=True', mock_logger.debug.call_args[0][0])
 
     @patch('vuegraf.vuegraf.initConfig')
-    @patch('vuegraf.vuegraf.initInfluxConnection')
+    @patch('vuegraf.vuegraf.initConnection')
     @patch('vuegraf.vuegraf.initDeviceAccount')  # Mock to trigger exit
     @patch('vuegraf.vuegraf.collectUsage')
-    @patch('vuegraf.vuegraf.writeInfluxPoints')
+    @patch('vuegraf.vuegraf.writeDataPoints')
     @patch('vuegraf.vuegraf.getTimeNow')
     @patch('vuegraf.vuegraf.getCurrentHourUTC')
     @patch('vuegraf.vuegraf.getCurrentDayLocal')
@@ -494,7 +494,7 @@ class TestVuegraf(unittest.TestCase):
         mock_init_device.assert_called_once_with(test_config, test_config['accounts'][0])
         # collectUsage should only be called for the first account
         mock_collect_usage.assert_called_once()
-        # writeInfluxPoints should still be called once at the end of the loop iteration
+        # writeDataPoints should still be called once at the end of the loop iteration
         mock_write_points.assert_called_once()
         # pauseEvent.wait *is* called once at the end of the iteration where running became False
         mock_pause_event.wait.assert_called_once()

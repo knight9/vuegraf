@@ -28,12 +28,7 @@ from pyemvue.enums import Scale
 from vuegraf.collect import collectHistoryUsage, collectUsage
 from vuegraf.config import getConfigValue, initConfig
 from vuegraf.device import initDeviceAccount
-from vuegraf.influx import initInfluxConnection, writeInfluxPoints
-from vuegraf.mqtt import (
-  initMqttConnectionIfConfigured,
-  publishMqttMessagesIfConnected,
-  stopMqttIfConnected,
-)
+from vuegraf.destination import closeConnection, initConnection, writeDataPoints
 from vuegraf.time import getCurrentHourUTC, getCurrentDayLocal, getTimeNow
 
 
@@ -47,8 +42,7 @@ def run():
     config = initConfig()
     logger.info('Starting Vuegraf version {}'.format(__version__))
 
-    initInfluxConnection(config)
-    initMqttConnectionIfConfigured(config)
+    initConnection(config)
 
     detailedStartTimeUTC = getTimeNow(datetime.UTC)
 
@@ -122,9 +116,8 @@ def run():
             if not running:
                 break
 
-        # Save accumulated data points into InfluxDB
-        writeInfluxPoints(config, usageDataPoints)
-        publishMqttMessagesIfConnected(config, usageDataPoints)
+        # Save accumulated data points into the configured destinations
+        writeDataPoints(config, usageDataPoints)
 
         if collectDetails:
             detailedStartTimeUTC = nowLagUTC + datetime.timedelta(seconds=1)
@@ -135,7 +128,7 @@ def run():
         # Sleep for the specified interval before starting the next collection
         pauseEvent.wait(intervalSecs)
 
-    stopMqttIfConnected(config)
+    closeConnection(config)
     logger.info('Finished')
 
 

@@ -123,6 +123,7 @@ def initConfig():
     # Create a sanitized copy for logging and remove sensitive information from it
     sanitized_config = config.copy()
     sanitized_config.pop('influxDb', None)
+    sanitized_config.pop('victoriaMetrics', None)
     sanitized_config.pop('accounts', None)
     sanitized_config.pop('mqtt', None)
 
