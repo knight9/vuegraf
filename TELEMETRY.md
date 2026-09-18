@@ -49,17 +49,42 @@ Second history is bounded to the most recent three hours; successful batches
 share an exact boundary to avoid gaps. The first batch follows the existing
 detail schedule, rather than triggering an immediate historical import.
 
-This extension does not yet backfill telemetry from `--historydays` or recover
-minute gaps across an outage. That flag continues to operate on legacy energy
-history. Existing hourly/daily power collection is unchanged. Graphs should
-choose one resolution; summing minute and second energy counts the same usage
-twice. No database retention settings are changed.
+`--historydays N` now imports every selected telemetry metric alongside legacy
+energy history. It requests second samples within the latest three hours,
+minute samples within the latest seven days, and hourly/daily samples across
+the requested historical range. Only data actually returned by Emporia is
+stored; unavailable older detail cannot be reconstructed. Known metadata
+channels are included even when absent from the latest readings.
 
-Unavailable chart combinations are retried after one hour. Bulk requests use
+Historical requests are bounded to one hour of seconds, 12 hours of minutes,
+or 20 days of hourly/daily readings. Each channel/metric batch is written
+immediately, with a short interruptible pause between requests, avoiding a
+large in-memory history buffer. Empty older periods do not suppress later
+periods. A request or write failure stops the import; rerun the same command
+to recover. Matching InfluxDB identities/timestamps overwrite the same fields,
+so retries do not create additional series. Import ranges include the bucket
+containing the requested start and exclude incomplete ending buckets.
+
+Ongoing hourly and daily telemetry use the same chart path as the import,
+following `detailedDataHoursEnabled` and `detailedDataDaysEnabled` when
+`detailedDataEnabled` is enabled. Daily averages divide by the actual duration
+of the configured local day (23/24/25 hours across daylight-saving changes).
+Set `timezone` to the account's IANA timezone to align daily buckets. Voltage
+is always retained as returned, without energy scaling.
+
+Minute gaps across an outage can be recovered by rerunning `--historydays`;
+automatic database-resume recovery is not yet implemented for telemetry.
+This does not change current polling into a continuous one-second stream.
+Graphs should choose one resolution; summing minute and second energy counts
+the same usage twice. No database retention settings are changed.
+
+Unavailable live minute chart combinations are retried after one hour. Bulk requests use
 one attempt so a Vue without mains CTs does not cause repeated retries for null
 readings. Authentication, rate-limit and other request errors stop the extra
 collection for that cycle and are logged without credentials or request URLs.
-Existing power collection still proceeds. No readings are fabricated.
+Existing power collection still proceeds. Historical import failures propagate
+so they can be reported; completed batches remain in the database. No readings
+are fabricated.
 
 ## Storage and Grafana
 

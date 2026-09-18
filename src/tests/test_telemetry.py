@@ -78,7 +78,9 @@ def test_second_history_sparse_and_bounded(account):
     account['vue'].get_chart_usage.return_value = ([None, 0, 0.001], start)
     points = []
     telemetry.collectTelemetry(config(), account, NOW, True, points, NOW - datetime.timedelta(days=2))
-    assert all(call.args[1] == start for call in account['vue'].get_chart_usage.call_args_list)
+    assert min(call.args[1] for call in account['vue'].get_chart_usage.call_args_list) == start
+    assert all((call.args[2] - call.args[1]).total_seconds() <= 3600
+               for call in account['vue'].get_chart_usage.call_args_list)
     detailed = [point for point in points if point.detailed == 'True']
     assert {point.timestamp for point in detailed} == {start + datetime.timedelta(seconds=1), start + datetime.timedelta(seconds=2)}
     assert any(point.metric == 'power_watts' and point.value == 3600 for point in detailed)

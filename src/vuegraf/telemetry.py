@@ -6,6 +6,7 @@ import logging
 import math
 import time
 from dataclasses import dataclass
+from dateutil.tz import gettz
 
 from pyemvue.enums import Scale, Unit
 from requests import HTTPError
@@ -84,30 +85,42 @@ def appendSample(account, channel, metric, value, timestamp, seconds, detail, po
     return True
 
 
-def fetchChart(config, account, channel, metric, start, stop, scale, detail, points):
+def sampleWindow(config, first, index, scale):
+    """Return a sample's start and duration, including 23/25-hour local days."""
+    if scale == Scale.DAY.value:
+        zone = gettz(config.get('timezone') if config.get('timezone') != 'TZ' else None)
+        local = first.astimezone(zone).replace(hour=0, minute=0, second=0, microsecond=0)
+        stamp = (local + datetime.timedelta(days=index)).astimezone(datetime.UTC)
+        end = (local + datetime.timedelta(days=index + 1)).astimezone(datetime.UTC)
+        return stamp, (end - stamp).total_seconds()
+    seconds = {Scale.SECOND.value: 1, Scale.MINUTE.value: 60, Scale.HOUR.value: 3600}[scale]
+    return first + datetime.timedelta(seconds=index * seconds), seconds
+
+
+def fetchChart(config, account, channel, metric, start, stop, scale, detail, points, cacheEmpty=True):
     """Bound unsupported-channel retries; let authentication/rate-limit failures stop this cycle."""
     cache = account.setdefault('_telemetryUnavailable', {})
     key = (channel.device_gid, channel.channel_num, metric, scale)
-    if cache.get(key, 0) > time.monotonic():
+    if cacheEmpty and cache.get(key, 0) > time.monotonic():
         return
-    seconds = 1 if scale == Scale.SECOND.value else 60
     try:
         values, first = account['vue'].get_chart_usage(channel, start, stop, scale=scale, unit=METRICS[metric][0])
     except HTTPError as error:
         status = error.response.status_code if error.response is not None else None
         if status not in (400, 404, 422):
             raise
-        cache[key] = time.monotonic() + 3600
+        if cacheEmpty:
+            cache[key] = time.monotonic() + 3600
         logger.info('Metric unavailable: channel=%s metric=%s scale=%s status=%s',
                     channel.channel_num, metric, scale, status)
         return
     found = False
     if first is not None:
         for index, value in enumerate(values):
-            stamp = first + datetime.timedelta(seconds=index * seconds)
-            if start <= stamp < stop:
+            stamp, seconds = sampleWindow(config, first, index, scale)
+            if start <= stamp and stamp + datetime.timedelta(seconds=seconds) <= stop:
                 found = appendSample(account, channel, metric, value, stamp, seconds, detail, points) or found
-    if not found:
+    if not found and cacheEmpty:
         cache[key] = time.monotonic() + 3600
 
 
@@ -142,6 +155,8 @@ def collectTelemetry(config, account, stopTimeUTC, collectDetails, points, detai
             for channel in metricChannels.values():
                 appendSample(account, channel, metric, channel.usage, stop, 60, minuteTag, points)
 
+        account.setdefault('_telemetryChannels', {}).update(channels)
+
         # Fill omissions in the bulk response, notably per-leg mains power. Never
         # invent channel numbers: all identifiers came from a successful API response.
         for metric in metrics:
@@ -160,7 +175,12 @@ def collectTelemetry(config, account, stopTimeUTC, collectDetails, points, detai
                 if channel.channel_num in ('Balance', 'TotalUsage', 'MainsFromGrid', 'MainsToGrid'):
                     continue
                 for metric in metrics:
-                    fetchChart(config, account, channel, metric, start, detailStop, Scale.SECOND.value, secondTag, points)
+                    batchStart = start
+                    while batchStart < detailStop:
+                        batchStop = min(batchStart + datetime.timedelta(hours=1), detailStop)
+                        fetchChart(config, account, channel, metric, batchStart, batchStop,
+                                   Scale.SECOND.value, secondTag, points, cacheEmpty=False)
+                        batchStart = batchStop
             account['_telemetrySecondStop'] = detailStop
     except Exception as error:
         # HTTP error strings may contain request details; log only the type/status.

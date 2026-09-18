@@ -16,6 +16,7 @@ from vuegraf.device import lookupDeviceName, lookupChannelName
 from vuegraf.destination import getLastDBTimeStamp, getTags
 from vuegraf.time import calculateHistoryTimeRange, convertToLocalDayInUTC
 from vuegraf.telemetry import collectTelemetry
+from vuegraf.telemetry_history import collectAggregate, collectHistory
 
 
 logger = logging.getLogger('vuegraf.data')
@@ -252,6 +253,11 @@ def collectUsage(config, account, startTimeUTC, stopTimeUTC, collectDetails, usa
     usages = account['vue'].get_device_list_usage(deviceGids, stopTimeUTC, scale=scale, unit=Unit.KWH.value)
     if scale == Scale.MINUTE.value:
         collectTelemetry(config, account, stopTimeUTC, collectDetails, usageDataPoints, detailedStartTimeUTC, usages)
+    elif config.get('telemetry', {}).get('enabled', False):
+        try:
+            collectAggregate(config, account, startTimeUTC, scale, usageDataPoints)
+        except Exception as error:
+            logger.warning('Telemetry aggregate incomplete (%s); rerun history to recover', type(error).__name__)
     if usages is not None:
         for gid, device in usages.items():
             extractDataPoints(config, account, device, stopTimeUTC, collectDetails,
@@ -260,6 +266,7 @@ def collectUsage(config, account, startTimeUTC, stopTimeUTC, collectDetails, usa
 
 def collectHistoryUsage(config, account, startTimeUTC, stopTimeUTC, usageDataPoints: list[Point], pauseEvent):
     """Module entrypoint. Fetches historic Vue data and unpacks it into points."""
+    collectHistory(config, account, startTimeUTC, stopTimeUTC, pauseEvent)
     # Grab base usage data for later use in history collection
     deviceGids = list(account['deviceIdMap'].keys())
     usages = account['vue'].get_device_list_usage(deviceGids, stopTimeUTC, scale=Scale.MINUTE.value, unit=Unit.KWH.value)

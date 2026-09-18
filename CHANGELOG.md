@@ -4,6 +4,7 @@
 - TBD
 
 ## New features
+- Extended telemetry history imports to all selected metrics at second, minute, hour and day resolutions; added matching ongoing aggregates and daylight-saving-aware daily averages.
 - Added opt-in electrical telemetry: voltage, current, energy, power, per-leg mains discovery, stable channel IDs, and optional Emporia cost/environmental equivalents. Supports InfluxDB, VictoriaMetrics and MQTT.
 - Added image to GHCR - @jertel
 - Added support for writing directly to VictoriaMetrics, configured via a `victoriaMetrics` section. May replace InfluxDB or run alongside it, in which case each database receives only the data points it is missing - @clara-j
