@@ -11,6 +11,7 @@ import pprint
 
 from vuegraf.config import getConfigValue, getInfluxTag, getInfluxVersion
 from vuegraf.time import calculateResumeTimeRange, getTimeNow
+from vuegraf.telemetry import TelemetryPoint
 
 
 logger = logging.getLogger('vuegraf.influx')
@@ -18,6 +19,19 @@ logger = logging.getLogger('vuegraf.influx')
 
 def createDataPoint(config, pt):
     """Creates appropriate Influx structure from a collect.Point."""
+    if isinstance(pt, TelemetryPoint):
+        tags = {'account_name': pt.accountName, 'device_gid': str(pt.deviceGid),
+                'channel_num': pt.channelNum, getInfluxTag(config)[0]: pt.detailed}
+        # Names are fields, so renaming in Emporia does not split historical series.
+        fields = {pt.metric: pt.value, 'channel_name': pt.chanName, 'station_name': pt.deviceName}
+        if getInfluxVersion(config) == 2:
+            point = influxdb_client.Point('electrical_telemetry').time(pt.timestamp)
+            for name, value in tags.items():
+                point.tag(name, value)
+            for name, value in fields.items():
+                point.field(name, value)
+            return point
+        return {'measurement': 'electrical_telemetry', 'tags': tags, 'fields': fields, 'time': pt.timestamp}
     accountName = pt.accountName
     deviceName = pt.deviceName
     chanName = pt.chanName

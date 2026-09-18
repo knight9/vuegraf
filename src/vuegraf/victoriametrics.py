@@ -10,6 +10,7 @@ import requests
 
 from vuegraf.config import getConfigValue
 from vuegraf.time import calculateResumeTimeRange
+from vuegraf.telemetry import TelemetryPoint
 
 
 logger = logging.getLogger('vuegraf.victoriametrics')
@@ -94,6 +95,12 @@ def createDataPoint(config, pt):
     tagName, _, _, _, _ = getTags(config)
     addStationField = getConfigValue(config, 'addStationField')
     metricName, extraLabels = getNaming(config)
+
+    if isinstance(pt, TelemetryPoint):
+        metric = dict(extraLabels)
+        metric.update({'__name__': 'electrical_telemetry_' + pt.metric, 'account_name': pt.accountName,
+                       'device_gid': str(pt.deviceGid), 'channel_num': pt.channelNum, tagName: pt.detailed})
+        return {'metric': metric, 'values': [pt.value], 'timestamps': [int(pt.timestamp.timestamp() * 1000)]}
 
     # Seeded with extraLabels so that the labels below always win, and a stray
     # extraLabels entry can never displace the metric name or a tag.

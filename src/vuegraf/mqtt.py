@@ -12,6 +12,7 @@ import logging
 from paho.mqtt import client
 
 from vuegraf.config import getConfigValue
+from vuegraf.telemetry import TelemetryPoint
 
 logger = logging.getLogger('vuegraf.mqtt')
 
@@ -51,7 +52,9 @@ def initMqttConnectionIfConfigured(config) -> None:
 def _retainOnlyLatestPointPerChannel(points: list) -> list:
     acctAndChanToPoints = defaultdict(list)
     for pt in points:
-        acctAndChanToPoints[(pt.accountName, pt.deviceName, pt.chanName)].append(pt)
+        key = ((pt.accountName, pt.deviceGid, pt.channelNum, pt.metric) if isinstance(pt, TelemetryPoint)
+               else (pt.accountName, pt.deviceName, pt.chanName))
+        acctAndChanToPoints[key].append(pt)
     return [
         max(points, key=lambda pt: pt.timestamp)
         for points in acctAndChanToPoints.values()
@@ -84,6 +87,12 @@ def publishMqttMessagesIfConnected(config, usageDataPoints: list) -> None:
     # as Vue power values are updated.
     msg_infos = []
     for pt in latestPoints:
+        if isinstance(pt, TelemetryPoint):
+            message = {'account': pt.accountName, 'device_gid': pt.deviceGid, 'channel_num': pt.channelNum,
+                       'station': pt.deviceName, 'channel_name': pt.chanName, 'metric': pt.metric,
+                       'value': pt.value, 'epoch_s': int(pt.timestamp.timestamp()), 'detailed': pt.detailed}
+            msg_infos.append(mqttc.publish(topic + '/telemetry', json.dumps(message)))
+            continue
         message = {
             "account": pt.accountName,
             "device_name": pt.chanName,

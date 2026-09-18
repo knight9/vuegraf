@@ -74,6 +74,10 @@ The same metric name and tags are used as with InfluxDB, so both destinations pr
 
 # Configuration
 
+This fork supports optional voltage/current telemetry and individual mains
+legs alongside the existing power collection. See [Electrical telemetry](TELEMETRY.md)
+for configuration, available metrics, storage schema, and limitations.
+
 The configuration allows for the definition of multiple Emporia Vue accounts. This will only be useful to users that need to pull metrics from multiple accounts. This is not needed if you have multiple Vue devices in a single account. Vuegraf will find multiple devices on its own within each account.
 
 The email address and password must match the credentials used when creating the Emporia Vue account in their mobile app.

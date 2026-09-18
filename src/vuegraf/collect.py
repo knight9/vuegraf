@@ -15,6 +15,7 @@ from vuegraf.config import getConfigValue
 from vuegraf.device import lookupDeviceName, lookupChannelName
 from vuegraf.destination import getLastDBTimeStamp, getTags
 from vuegraf.time import calculateHistoryTimeRange, convertToLocalDayInUTC
+from vuegraf.telemetry import collectTelemetry
 
 
 logger = logging.getLogger('vuegraf.data')
@@ -249,6 +250,8 @@ def collectUsage(config, account, startTimeUTC, stopTimeUTC, collectDetails, usa
 
     deviceGids = list(account['deviceIdMap'].keys())
     usages = account['vue'].get_device_list_usage(deviceGids, stopTimeUTC, scale=scale, unit=Unit.KWH.value)
+    if scale == Scale.MINUTE.value:
+        collectTelemetry(config, account, stopTimeUTC, collectDetails, usageDataPoints, detailedStartTimeUTC, usages)
     if usages is not None:
         for gid, device in usages.items():
             extractDataPoints(config, account, device, stopTimeUTC, collectDetails,

@@ -13,6 +13,7 @@
 from vuegraf import influx, victoriametrics
 from vuegraf.config import getInfluxTag, getInfluxVersion
 from vuegraf.mqtt import initMqttConnectionIfConfigured, publishMqttMessagesIfConnected, stopMqttIfConnected
+from vuegraf.telemetry import TelemetryPoint, validateConfig as validateTelemetryConfig
 
 
 # Versions served by the InfluxDB destination.
@@ -49,6 +50,7 @@ def validateDestination(config):
     Called once from initConnection, so that a configuration mistake is reported at
     startup rather than partway through the first collection cycle.
     """
+    validateTelemetryConfig(config)
     if not usesInflux(config) and not usesVictoriaMetrics(config):
         raise ValueError('No database configured; expected an influxDb or '
                          'victoriaMetrics section.')
@@ -136,6 +138,9 @@ def pointsMissingFrom(config, name, usageDataPoints):
     state = getResumeState(config)
     missing = []
     for pt in usageDataPoints:
+        if isinstance(pt, TelemetryPoint):
+            missing.append(pt)
+            continue
         entry = state.get((name, pt.deviceName, pt.chanName, pt.detailed))
         if entry is None:
             # Nothing was looked up for this series - hourly and daily points never

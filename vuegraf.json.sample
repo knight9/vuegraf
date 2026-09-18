@@ -11,6 +11,10 @@
     "detailedDataEnabled": true,
     "detailedDataSecondsEnabled": true,
     "detailedDataHoursEnabled": true,
+    "telemetry": {
+        "enabled": true,
+        "metrics": ["energy", "current", "voltage"]
+    },
     "timezone": "TZ",
     "accounts": [
         {
