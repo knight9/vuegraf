@@ -1,0 +1,94 @@
+name: vuegraf-integration
+
+# Local-only end-to-end test stack. Secrets and the Emporia config live in
+# ./int/, which is already ignored by Git.
+services:
+  config-init:
+    image: alpine:3.20
+    environment:
+      VUEGRAF_CONFIG_B64: ${VUEGRAF_CONFIG_B64:-}
+      GRAFANA_DATASOURCE_B64: ${GRAFANA_DATASOURCE_B64:-}
+    command: >-
+      /bin/sh -ec 'umask 077;
+      test -n "$$VUEGRAF_CONFIG_B64";
+      test -n "$$GRAFANA_DATASOURCE_B64";
+      echo "$$VUEGRAF_CONFIG_B64" | base64 -d > /config/vuegraf.json;
+      echo "$$GRAFANA_DATASOURCE_B64" | base64 -d > /grafana/datasource.yaml;
+      chown 1012:1012 /config/vuegraf.json;
+      chown 472:472 /grafana-data;
+      chmod 600 /config/vuegraf.json;
+      chmod 644 /grafana/datasource.yaml'
+    volumes:
+      - integration-config:/config
+      - integration-datasources:/grafana
+      - integration-grafana-prod-version:/grafana-data
+
+  influxdb:
+    image: influxdb:2.7-alpine
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUX_USERNAME}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUX_PASSWORD}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUX_ORG:-vuegraf}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUX_BUCKET:-vuegraf}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUX_TOKEN}
+    ports:
+      - "127.0.0.1:8086:8086"
+    volumes:
+      - integration-influxdb:/var/lib/influxdb2
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  grafana:
+    image: grafana/grafana-oss:11.5.2
+    depends_on:
+      config-init:
+        condition: service_completed_successfully
+      influxdb:
+        condition: service_healthy
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USERNAME:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - integration-datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - integration-grafana-prod-version:/var/lib/grafana
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/health >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  vuegraf:
+    image: vuegraf-telemetry:local
+    profiles: ["collector"]
+    depends_on:
+      config-init:
+        condition: service_completed_successfully
+      influxdb:
+        condition: service_healthy
+    command: ["/opt/vuegraf/conf/vuegraf.json"]
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - integration-config:/opt/vuegraf/conf:ro
+
+volumes:
+  integration-influxdb:
+  integration-grafana:
+  integration-grafana-prod-version:
+  integration-config:
+  integration-datasources:

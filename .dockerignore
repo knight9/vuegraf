@@ -1,0 +1,10 @@
+# Only build inputs; credentials, exports and local environments stay out.
+**
+!Dockerfile
+!setup.py
+!README.md
+!src/
+!src/vuegraf/
+!src/vuegraf/**
+src/vuegraf/**/__pycache__/
+src/vuegraf/**/*.pyc

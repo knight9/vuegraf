@@ -21,3 +21,7 @@ docker-compose.yaml
 vugraftobe.py
 config.json
 .vscode
+# Private household mappings and generated dashboards; publish examples only.
+grafana/channel-aliases.json
+grafana/layout.json
+grafana/dashboards/

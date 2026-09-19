@@ -13,6 +13,8 @@ env:
 
 jobs:
   release:
+    # Fork pushes checkpoint code only; image publication is a separate action.
+    if: github.repository_owner == 'jertel'
     runs-on: ubuntu-latest
     steps:
 

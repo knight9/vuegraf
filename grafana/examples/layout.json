@@ -1,0 +1,98 @@
+{
+  "left_device": "100001",
+  "right_device": "100002",
+  "mains_device": "100001",
+  "right_channels": [
+    [
+      "1",
+      "Example Panel 2 - Channel 1",
+      "#5794F2"
+    ],
+    [
+      "2",
+      "Example Breaker 31",
+      "#FF9830"
+    ],
+    [
+      "3",
+      "Example Breaker 32",
+      "#B877D9"
+    ],
+    [
+      "4",
+      "Example Breaker 33",
+      "#B877D9"
+    ],
+    [
+      "5",
+      "Example Breaker 34",
+      "#FF9830"
+    ],
+    [
+      "6",
+      "Example Breaker 35",
+      "#73BF69"
+    ],
+    [
+      "7",
+      "Example Breaker 36",
+      "#F2495C"
+    ],
+    [
+      "8",
+      "Example Breaker 37",
+      "#F2495C"
+    ],
+    [
+      "9",
+      "Example Breaker 38",
+      "#73BF69"
+    ],
+    [
+      "10",
+      "Example Panel 2 - Channel 10",
+      "#5794F2"
+    ],
+    [
+      "11",
+      "Example Panel 2 - Channel 11",
+      "#5794F2"
+    ],
+    [
+      "12",
+      "Example Panel 2 - Channel 12",
+      "#5794F2"
+    ],
+    [
+      "13",
+      "Example Panel 2 - Channel 13",
+      "#5794F2"
+    ],
+    [
+      "14",
+      "Example Panel 2 - Channel 14",
+      "#5794F2"
+    ],
+    [
+      "15",
+      "Example Panel 2 - Channel 15",
+      "#5794F2"
+    ]
+  ],
+  "merged_channels": [
+    "97",
+    "98",
+    "99",
+    "100"
+  ],
+  "merged_legs": [
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9"
+  ]
+}

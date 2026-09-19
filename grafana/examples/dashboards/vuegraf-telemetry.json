@@ -1,0 +1,295 @@
+{
+  "annotations": {
+    "list": [
+
+    ]
+  },
+  "editable": false,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+
+  ],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "emporia-influxdb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.channel_num}",
+          "unit": "watt"
+        },
+        "overrides": [
+
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "query": "from(bucket: v.defaultBucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"electrical_telemetry\" and r._field == \"power_watts\")\n  |> filter(fn: (r) => r.account_name =~ /^${account:regex}$/ and r.device_gid =~ /^${device:regex}$/ and r.channel_num =~ /^${channel:regex}$/)\n  |> filter(fn: (r) => r.detailed == \"${detail}\")\n  |> filter(fn: (r) => r.device_gid != \"100002\" or (r.channel_num != \"2\" and r.channel_num != \"3\" and r.channel_num != \"4\" and r.channel_num != \"5\" and r.channel_num != \"6\" and r.channel_num != \"7\" and r.channel_num != \"8\" and r.channel_num != \"9\"))\n  |> map(fn: (r) => ({r with channel_num: if r.device_gid == \"100001\" and r.channel_num == \"1,2,3\" then \"Example Panel 1 - Channel 1,2,3\" else if r.device_gid == \"100001\" and r.channel_num == \"1\" then \"Example Panel 1 - Channel 1\" else if r.device_gid == \"100001\" and r.channel_num == \"2\" then \"Example Panel 1 - Channel 2\" else if r.device_gid == \"100001\" and r.channel_num == \"3\" then \"Example Panel 1 - Channel 3\" else if r.device_gid == \"100001\" and r.channel_num == \"4\" then \"Example Panel 1 - Channel 4\" else if r.device_gid == \"100001\" and r.channel_num == \"5\" then \"Example Panel 1 - Channel 5\" else if r.device_gid == \"100001\" and r.channel_num == \"6\" then \"Example Panel 1 - Channel 6\" else if r.device_gid == \"100001\" and r.channel_num == \"7\" then \"Example Panel 1 - Channel 7\" else if r.device_gid == \"100001\" and r.channel_num == \"8\" then \"Example Panel 1 - Channel 8\" else if r.device_gid == \"100001\" and r.channel_num == \"9\" then \"Example Panel 1 - Channel 9\" else if r.device_gid == \"100001\" and r.channel_num == \"10\" then \"Example Panel 1 - Channel 10\" else if r.device_gid == \"100001\" and r.channel_num == \"11\" then \"Example Panel 1 - Channel 11\" else if r.device_gid == \"100001\" and r.channel_num == \"12\" then \"Example Panel 1 - Channel 12\" else if r.device_gid == \"100001\" and r.channel_num == \"13\" then \"Example Panel 1 - Channel 13\" else if r.device_gid == \"100001\" and r.channel_num == \"14\" then \"Example Panel 1 - Channel 14\" else if r.device_gid == \"100001\" and r.channel_num == \"15\" then \"Example Panel 1 - Channel 15\" else if r.device_gid == \"100001\" and r.channel_num == \"16\" then \"Example Panel 1 - Channel 16\" else if r.device_gid == \"100001\" and r.channel_num == \"Mains_A\" then \"Example Panel 1 - Channel Mains_A\" else if r.device_gid == \"100001\" and r.channel_num == \"Mains_B\" then \"Example Panel 1 - Channel Mains_B\" else if r.device_gid == \"100001\" and r.channel_num == \"Mains_C\" then \"Example Panel 1 - Channel Mains_C\" else if r.device_gid == \"100002\" and r.channel_num == \"1,2,3\" then \"Example Panel 2 - Channel 1,2,3\" else if r.device_gid == \"100002\" and r.channel_num == \"1\" then \"Example Panel 2 - Channel 1\" else if r.device_gid == \"100002\" and r.channel_num == \"2\" then \"Example Panel 2 - Channel 2\" else if r.device_gid == \"100002\" and r.channel_num == \"3\" then \"Example Panel 2 - Channel 3\" else if r.device_gid == \"100002\" and r.channel_num == \"4\" then \"Example Panel 2 - Channel 3\" else if r.device_gid == \"100002\" and r.channel_num == \"5\" then \"Example Panel 2 - Channel 2\" else if r.device_gid == \"100002\" and r.channel_num == \"6\" then \"Example Panel 2 - Channel 6\" else if r.device_gid == \"100002\" and r.channel_num == \"7\" then \"Example Panel 2 - Channel 7\" else if r.device_gid == \"100002\" and r.channel_num == \"8\" then \"Example Panel 2 - Channel 7\" else if r.device_gid == \"100002\" and r.channel_num == \"9\" then \"Example Panel 2 - Channel 6\" else if r.device_gid == \"100002\" and r.channel_num == \"10\" then \"Example Panel 2 - Channel 10\" else if r.device_gid == \"100002\" and r.channel_num == \"11\" then \"Example Panel 2 - Channel 11\" else if r.device_gid == \"100002\" and r.channel_num == \"12\" then \"Example Panel 2 - Channel 12\" else if r.device_gid == \"100002\" and r.channel_num == \"13\" then \"Example Panel 2 - Channel 13\" else if r.device_gid == \"100002\" and r.channel_num == \"14\" then \"Example Panel 2 - Channel 14\" else if r.device_gid == \"100002\" and r.channel_num == \"15\" then \"Example Panel 2 - Channel 15\" else if r.device_gid == \"100002\" and r.channel_num == \"16\" then \"Example Panel 2 - Channel 16\" else if r.device_gid == \"100002\" and r.channel_num == \"Mains_A\" then \"Example Panel 2 - Channel Mains_A\" else if r.device_gid == \"100002\" and r.channel_num == \"Mains_B\" then \"Example Panel 2 - Channel Mains_B\" else if r.device_gid == \"100002\" and r.channel_num == \"Mains_C\" then \"Example Panel 2 - Channel Mains_C\" else if r.device_gid == \"100002\" and r.channel_num == \"97\" then \"Example Panel 2 - Channel 2\" else if r.device_gid == \"100002\" and r.channel_num == \"98\" then \"Example Panel 2 - Channel 3\" else if r.device_gid == \"100002\" and r.channel_num == \"99\" then \"Example Panel 2 - Channel 6\" else if r.device_gid == \"100002\" and r.channel_num == \"100\" then \"Example Panel 2 - Channel 7\" else r.channel_num}))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"power\")",
+          "refId": "A"
+        }
+      ],
+      "title": "Real Power by Channel",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "emporia-influxdb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.channel_num}",
+          "unit": "volt"
+        },
+        "overrides": [
+
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "query": "from(bucket: v.defaultBucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"electrical_telemetry\" and r._field == \"voltage_volts\")\n  |> filter(fn: (r) => r.account_name =~ /^${account:regex}$/ and r.device_gid =~ /^${device:regex}$/ and r.channel_num =~ /^${channel:regex}$/)\n  |> filter(fn: (r) => r.detailed == \"${detail}\")\n  |> filter(fn: (r) => r.device_gid != \"100002\" or (r.channel_num != \"97\" and r.channel_num != \"98\" and r.channel_num != \"99\" and r.channel_num != \"100\"))\n  |> map(fn: (r) => ({r with channel_num: if r.device_gid == \"100001\" and r.channel_num == \"1,2,3\" then \"Example Panel 1 - Channel 1,2,3\" else if r.device_gid == \"100001\" and r.channel_num == \"1\" then \"Example Panel 1 - Channel 1\" else if r.device_gid == \"100001\" and r.channel_num == \"2\" then \"Example Panel 1 - Channel 2\" else if r.device_gid == \"100001\" and r.channel_num == \"3\" then \"Example Panel 1 - Channel 3\" else if r.device_gid == \"100001\" and r.channel_num == \"4\" then \"Example Panel 1 - Channel 4\" else if r.device_gid == \"100001\" and r.channel_num == \"5\" then \"Example Panel 1 - Channel 5\" else if r.device_gid == \"100001\" and r.channel_num == \"6\" then \"Example Panel 1 - Channel 6\" else if r.device_gid == \"100001\" and r.channel_num == \"7\" then \"Example Panel 1 - Channel 7\" else if r.device_gid == \"100001\" and r.channel_num == \"8\" then \"Example Panel 1 - Channel 8\" else if r.device_gid == \"100001\" and r.channel_num == \"9\" then \"Example Panel 1 - Channel 9\" else if r.device_gid == \"100001\" and r.channel_num == \"10\" then \"Example Panel 1 - Channel 10\" else if r.device_gid == \"100001\" and r.channel_num == \"11\" then \"Example Panel 1 - Channel 11\" else if r.device_gid == \"100001\" and r.channel_num == \"12\" then \"Example Panel 1 - Channel 12\" else if r.device_gid == \"100001\" and r.channel_num == \"13\" then \"Example Panel 1 - Channel 13\" else if r.device_gid == \"100001\" and r.channel_num == \"14\" then \"Example Panel 1 - Channel 14\" else if r.device_gid == \"100001\" and r.channel_num == \"15\" then \"Example Panel 1 - Channel 15\" else if r.device_gid == \"100001\" and r.channel_num == \"16\" then \"Example Panel 1 - Channel 16\" else if r.device_gid == \"100001\" and r.channel_num == \"Mains_A\" then \"Example Panel 1 - Channel Mains_A\" else if r.device_gid == \"100001\" and r.channel_num == \"Mains_B\" then \"Example Panel 1 - Channel Mains_B\" else if r.device_gid == \"100001\" and r.channel_num == \"Mains_C\" then \"Example Panel 1 - Channel Mains_C\" else if r.device_gid == \"100002\" and r.channel_num == \"1,2,3\" then \"Example Panel 2 - Channel 1,2,3\" else if r.device_gid == \"100002\" and r.channel_num == \"1\" then \"Example Panel 2 - Channel 1\" else if r.device_gid == \"100002\" and r.channel_num == \"2\" then \"Example Panel 2 - Channel 2\" else if r.device_gid == \"100002\" and r.channel_num == \"3\" then \"Example Panel 2 - Channel 3\" else if r.device_gid == \"100002\" and r.channel_num == \"4\" then \"Example Panel 2 - Channel 3\" else if r.device_gid == \"100002\" and r.channel_num == \"5\" then \"Example Panel 2 - Channel 2\" else if r.device_gid == \"100002\" and r.channel_num == \"6\" then \"Example Panel 2 - Channel 6\" else if r.device_gid == \"100002\" and r.channel_num == \"7\" then \"Example Panel 2 - Channel 7\" else if r.device_gid == \"100002\" and r.channel_num == \"8\" then \"Example Panel 2 - Channel 7\" else if r.device_gid == \"100002\" and r.channel_num == \"9\" then \"Example Panel 2 - Channel 6\" else if r.device_gid == \"100002\" and r.channel_num == \"10\" then \"Example Panel 2 - Channel 10\" else if r.device_gid == \"100002\" and r.channel_num == \"11\" then \"Example Panel 2 - Channel 11\" else if r.device_gid == \"100002\" and r.channel_num == \"12\" then \"Example Panel 2 - Channel 12\" else if r.device_gid == \"100002\" and r.channel_num == \"13\" then \"Example Panel 2 - Channel 13\" else if r.device_gid == \"100002\" and r.channel_num == \"14\" then \"Example Panel 2 - Channel 14\" else if r.device_gid == \"100002\" and r.channel_num == \"15\" then \"Example Panel 2 - Channel 15\" else if r.device_gid == \"100002\" and r.channel_num == \"16\" then \"Example Panel 2 - Channel 16\" else if r.device_gid == \"100002\" and r.channel_num == \"Mains_A\" then \"Example Panel 2 - Channel Mains_A\" else if r.device_gid == \"100002\" and r.channel_num == \"Mains_B\" then \"Example Panel 2 - Channel Mains_B\" else if r.device_gid == \"100002\" and r.channel_num == \"Mains_C\" then \"Example Panel 2 - Channel Mains_C\" else if r.device_gid == \"100002\" and r.channel_num == \"97\" then \"Example Panel 2 - Channel 2\" else if r.device_gid == \"100002\" and r.channel_num == \"98\" then \"Example Panel 2 - Channel 3\" else if r.device_gid == \"100002\" and r.channel_num == \"99\" then \"Example Panel 2 - Channel 6\" else if r.device_gid == \"100002\" and r.channel_num == \"100\" then \"Example Panel 2 - Channel 7\" else r.channel_num}))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"voltage\")",
+          "refId": "A"
+        }
+      ],
+      "title": "Voltage by Channel",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "emporia-influxdb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.channel_num}",
+          "unit": "amp"
+        },
+        "overrides": [
+
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "query": "from(bucket: v.defaultBucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"electrical_telemetry\" and r._field == \"current_amps\")\n  |> filter(fn: (r) => r.account_name =~ /^${account:regex}$/ and r.device_gid =~ /^${device:regex}$/ and r.channel_num =~ /^${channel:regex}$/)\n  |> filter(fn: (r) => r.detailed == \"${detail}\")\n  |> filter(fn: (r) => r.device_gid != \"100002\" or (r.channel_num != \"2\" and r.channel_num != \"3\" and r.channel_num != \"4\" and r.channel_num != \"5\" and r.channel_num != \"6\" and r.channel_num != \"7\" and r.channel_num != \"8\" and r.channel_num != \"9\"))\n  |> map(fn: (r) => ({r with channel_num: if r.device_gid == \"100001\" and r.channel_num == \"1,2,3\" then \"Example Panel 1 - Channel 1,2,3\" else if r.device_gid == \"100001\" and r.channel_num == \"1\" then \"Example Panel 1 - Channel 1\" else if r.device_gid == \"100001\" and r.channel_num == \"2\" then \"Example Panel 1 - Channel 2\" else if r.device_gid == \"100001\" and r.channel_num == \"3\" then \"Example Panel 1 - Channel 3\" else if r.device_gid == \"100001\" and r.channel_num == \"4\" then \"Example Panel 1 - Channel 4\" else if r.device_gid == \"100001\" and r.channel_num == \"5\" then \"Example Panel 1 - Channel 5\" else if r.device_gid == \"100001\" and r.channel_num == \"6\" then \"Example Panel 1 - Channel 6\" else if r.device_gid == \"100001\" and r.channel_num == \"7\" then \"Example Panel 1 - Channel 7\" else if r.device_gid == \"100001\" and r.channel_num == \"8\" then \"Example Panel 1 - Channel 8\" else if r.device_gid == \"100001\" and r.channel_num == \"9\" then \"Example Panel 1 - Channel 9\" else if r.device_gid == \"100001\" and r.channel_num == \"10\" then \"Example Panel 1 - Channel 10\" else if r.device_gid == \"100001\" and r.channel_num == \"11\" then \"Example Panel 1 - Channel 11\" else if r.device_gid == \"100001\" and r.channel_num == \"12\" then \"Example Panel 1 - Channel 12\" else if r.device_gid == \"100001\" and r.channel_num == \"13\" then \"Example Panel 1 - Channel 13\" else if r.device_gid == \"100001\" and r.channel_num == \"14\" then \"Example Panel 1 - Channel 14\" else if r.device_gid == \"100001\" and r.channel_num == \"15\" then \"Example Panel 1 - Channel 15\" else if r.device_gid == \"100001\" and r.channel_num == \"16\" then \"Example Panel 1 - Channel 16\" else if r.device_gid == \"100001\" and r.channel_num == \"Mains_A\" then \"Example Panel 1 - Channel Mains_A\" else if r.device_gid == \"100001\" and r.channel_num == \"Mains_B\" then \"Example Panel 1 - Channel Mains_B\" else if r.device_gid == \"100001\" and r.channel_num == \"Mains_C\" then \"Example Panel 1 - Channel Mains_C\" else if r.device_gid == \"100002\" and r.channel_num == \"1,2,3\" then \"Example Panel 2 - Channel 1,2,3\" else if r.device_gid == \"100002\" and r.channel_num == \"1\" then \"Example Panel 2 - Channel 1\" else if r.device_gid == \"100002\" and r.channel_num == \"2\" then \"Example Panel 2 - Channel 2\" else if r.device_gid == \"100002\" and r.channel_num == \"3\" then \"Example Panel 2 - Channel 3\" else if r.device_gid == \"100002\" and r.channel_num == \"4\" then \"Example Panel 2 - Channel 3\" else if r.device_gid == \"100002\" and r.channel_num == \"5\" then \"Example Panel 2 - Channel 2\" else if r.device_gid == \"100002\" and r.channel_num == \"6\" then \"Example Panel 2 - Channel 6\" else if r.device_gid == \"100002\" and r.channel_num == \"7\" then \"Example Panel 2 - Channel 7\" else if r.device_gid == \"100002\" and r.channel_num == \"8\" then \"Example Panel 2 - Channel 7\" else if r.device_gid == \"100002\" and r.channel_num == \"9\" then \"Example Panel 2 - Channel 6\" else if r.device_gid == \"100002\" and r.channel_num == \"10\" then \"Example Panel 2 - Channel 10\" else if r.device_gid == \"100002\" and r.channel_num == \"11\" then \"Example Panel 2 - Channel 11\" else if r.device_gid == \"100002\" and r.channel_num == \"12\" then \"Example Panel 2 - Channel 12\" else if r.device_gid == \"100002\" and r.channel_num == \"13\" then \"Example Panel 2 - Channel 13\" else if r.device_gid == \"100002\" and r.channel_num == \"14\" then \"Example Panel 2 - Channel 14\" else if r.device_gid == \"100002\" and r.channel_num == \"15\" then \"Example Panel 2 - Channel 15\" else if r.device_gid == \"100002\" and r.channel_num == \"16\" then \"Example Panel 2 - Channel 16\" else if r.device_gid == \"100002\" and r.channel_num == \"Mains_A\" then \"Example Panel 2 - Channel Mains_A\" else if r.device_gid == \"100002\" and r.channel_num == \"Mains_B\" then \"Example Panel 2 - Channel Mains_B\" else if r.device_gid == \"100002\" and r.channel_num == \"Mains_C\" then \"Example Panel 2 - Channel Mains_C\" else if r.device_gid == \"100002\" and r.channel_num == \"97\" then \"Example Panel 2 - Channel 2\" else if r.device_gid == \"100002\" and r.channel_num == \"98\" then \"Example Panel 2 - Channel 3\" else if r.device_gid == \"100002\" and r.channel_num == \"99\" then \"Example Panel 2 - Channel 6\" else if r.device_gid == \"100002\" and r.channel_num == \"100\" then \"Example Panel 2 - Channel 7\" else r.channel_num}))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"current\")",
+          "refId": "A"
+        }
+      ],
+      "title": "Current by Channel",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "emporia-influxdb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.channel_num}",
+          "unit": "kwatth"
+        },
+        "overrides": [
+
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "query": "from(bucket: v.defaultBucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"electrical_telemetry\" and r._field == \"energy_kwh\")\n  |> filter(fn: (r) => r.account_name =~ /^${account:regex}$/ and r.device_gid =~ /^${device:regex}$/ and r.channel_num =~ /^${channel:regex}$/)\n  |> filter(fn: (r) => r.detailed == \"${detail}\")\n  |> filter(fn: (r) => r.device_gid != \"100002\" or (r.channel_num != \"2\" and r.channel_num != \"3\" and r.channel_num != \"4\" and r.channel_num != \"5\" and r.channel_num != \"6\" and r.channel_num != \"7\" and r.channel_num != \"8\" and r.channel_num != \"9\"))\n  |> map(fn: (r) => ({r with channel_num: if r.device_gid == \"100001\" and r.channel_num == \"1,2,3\" then \"Example Panel 1 - Channel 1,2,3\" else if r.device_gid == \"100001\" and r.channel_num == \"1\" then \"Example Panel 1 - Channel 1\" else if r.device_gid == \"100001\" and r.channel_num == \"2\" then \"Example Panel 1 - Channel 2\" else if r.device_gid == \"100001\" and r.channel_num == \"3\" then \"Example Panel 1 - Channel 3\" else if r.device_gid == \"100001\" and r.channel_num == \"4\" then \"Example Panel 1 - Channel 4\" else if r.device_gid == \"100001\" and r.channel_num == \"5\" then \"Example Panel 1 - Channel 5\" else if r.device_gid == \"100001\" and r.channel_num == \"6\" then \"Example Panel 1 - Channel 6\" else if r.device_gid == \"100001\" and r.channel_num == \"7\" then \"Example Panel 1 - Channel 7\" else if r.device_gid == \"100001\" and r.channel_num == \"8\" then \"Example Panel 1 - Channel 8\" else if r.device_gid == \"100001\" and r.channel_num == \"9\" then \"Example Panel 1 - Channel 9\" else if r.device_gid == \"100001\" and r.channel_num == \"10\" then \"Example Panel 1 - Channel 10\" else if r.device_gid == \"100001\" and r.channel_num == \"11\" then \"Example Panel 1 - Channel 11\" else if r.device_gid == \"100001\" and r.channel_num == \"12\" then \"Example Panel 1 - Channel 12\" else if r.device_gid == \"100001\" and r.channel_num == \"13\" then \"Example Panel 1 - Channel 13\" else if r.device_gid == \"100001\" and r.channel_num == \"14\" then \"Example Panel 1 - Channel 14\" else if r.device_gid == \"100001\" and r.channel_num == \"15\" then \"Example Panel 1 - Channel 15\" else if r.device_gid == \"100001\" and r.channel_num == \"16\" then \"Example Panel 1 - Channel 16\" else if r.device_gid == \"100001\" and r.channel_num == \"Mains_A\" then \"Example Panel 1 - Channel Mains_A\" else if r.device_gid == \"100001\" and r.channel_num == \"Mains_B\" then \"Example Panel 1 - Channel Mains_B\" else if r.device_gid == \"100001\" and r.channel_num == \"Mains_C\" then \"Example Panel 1 - Channel Mains_C\" else if r.device_gid == \"100002\" and r.channel_num == \"1,2,3\" then \"Example Panel 2 - Channel 1,2,3\" else if r.device_gid == \"100002\" and r.channel_num == \"1\" then \"Example Panel 2 - Channel 1\" else if r.device_gid == \"100002\" and r.channel_num == \"2\" then \"Example Panel 2 - Channel 2\" else if r.device_gid == \"100002\" and r.channel_num == \"3\" then \"Example Panel 2 - Channel 3\" else if r.device_gid == \"100002\" and r.channel_num == \"4\" then \"Example Panel 2 - Channel 3\" else if r.device_gid == \"100002\" and r.channel_num == \"5\" then \"Example Panel 2 - Channel 2\" else if r.device_gid == \"100002\" and r.channel_num == \"6\" then \"Example Panel 2 - Channel 6\" else if r.device_gid == \"100002\" and r.channel_num == \"7\" then \"Example Panel 2 - Channel 7\" else if r.device_gid == \"100002\" and r.channel_num == \"8\" then \"Example Panel 2 - Channel 7\" else if r.device_gid == \"100002\" and r.channel_num == \"9\" then \"Example Panel 2 - Channel 6\" else if r.device_gid == \"100002\" and r.channel_num == \"10\" then \"Example Panel 2 - Channel 10\" else if r.device_gid == \"100002\" and r.channel_num == \"11\" then \"Example Panel 2 - Channel 11\" else if r.device_gid == \"100002\" and r.channel_num == \"12\" then \"Example Panel 2 - Channel 12\" else if r.device_gid == \"100002\" and r.channel_num == \"13\" then \"Example Panel 2 - Channel 13\" else if r.device_gid == \"100002\" and r.channel_num == \"14\" then \"Example Panel 2 - Channel 14\" else if r.device_gid == \"100002\" and r.channel_num == \"15\" then \"Example Panel 2 - Channel 15\" else if r.device_gid == \"100002\" and r.channel_num == \"16\" then \"Example Panel 2 - Channel 16\" else if r.device_gid == \"100002\" and r.channel_num == \"Mains_A\" then \"Example Panel 2 - Channel Mains_A\" else if r.device_gid == \"100002\" and r.channel_num == \"Mains_B\" then \"Example Panel 2 - Channel Mains_B\" else if r.device_gid == \"100002\" and r.channel_num == \"Mains_C\" then \"Example Panel 2 - Channel Mains_C\" else if r.device_gid == \"100002\" and r.channel_num == \"97\" then \"Example Panel 2 - Channel 2\" else if r.device_gid == \"100002\" and r.channel_num == \"98\" then \"Example Panel 2 - Channel 3\" else if r.device_gid == \"100002\" and r.channel_num == \"99\" then \"Example Panel 2 - Channel 6\" else if r.device_gid == \"100002\" and r.channel_num == \"100\" then \"Example Panel 2 - Channel 7\" else r.channel_num}))\n  |> aggregateWindow(every: v.windowPeriod, fn: sum, createEmpty: false)\n  |> yield(name: \"energy\")",
+          "refId": "A"
+        }
+      ],
+      "title": "Energy by Channel",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "emporia-influxdb"
+      },
+      "fieldConfig": {
+        "defaults": {
+        },
+        "overrides": [
+
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "id": 5,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "query": "from(bucket: v.defaultBucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"electrical_telemetry\")\n  |> filter(fn: (r) => r.account_name =~ /^${account:regex}$/ and r.device_gid =~ /^${device:regex}$/ and r.channel_num =~ /^${channel:regex}$/)\n  |> filter(fn: (r) => r.detailed == \"${detail}\")\n  |> pivot(rowKey: [\"_time\", \"account_name\", \"device_gid\", \"channel_num\", \"detailed\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> map(fn: (r) => ({r with channel_num: if r.device_gid == \"100001\" and r.channel_num == \"1,2,3\" then \"Example Panel 1 - Channel 1,2,3\" else if r.device_gid == \"100001\" and r.channel_num == \"1\" then \"Example Panel 1 - Channel 1\" else if r.device_gid == \"100001\" and r.channel_num == \"2\" then \"Example Panel 1 - Channel 2\" else if r.device_gid == \"100001\" and r.channel_num == \"3\" then \"Example Panel 1 - Channel 3\" else if r.device_gid == \"100001\" and r.channel_num == \"4\" then \"Example Panel 1 - Channel 4\" else if r.device_gid == \"100001\" and r.channel_num == \"5\" then \"Example Panel 1 - Channel 5\" else if r.device_gid == \"100001\" and r.channel_num == \"6\" then \"Example Panel 1 - Channel 6\" else if r.device_gid == \"100001\" and r.channel_num == \"7\" then \"Example Panel 1 - Channel 7\" else if r.device_gid == \"100001\" and r.channel_num == \"8\" then \"Example Panel 1 - Channel 8\" else if r.device_gid == \"100001\" and r.channel_num == \"9\" then \"Example Panel 1 - Channel 9\" else if r.device_gid == \"100001\" and r.channel_num == \"10\" then \"Example Panel 1 - Channel 10\" else if r.device_gid == \"100001\" and r.channel_num == \"11\" then \"Example Panel 1 - Channel 11\" else if r.device_gid == \"100001\" and r.channel_num == \"12\" then \"Example Panel 1 - Channel 12\" else if r.device_gid == \"100001\" and r.channel_num == \"13\" then \"Example Panel 1 - Channel 13\" else if r.device_gid == \"100001\" and r.channel_num == \"14\" then \"Example Panel 1 - Channel 14\" else if r.device_gid == \"100001\" and r.channel_num == \"15\" then \"Example Panel 1 - Channel 15\" else if r.device_gid == \"100001\" and r.channel_num == \"16\" then \"Example Panel 1 - Channel 16\" else if r.device_gid == \"100001\" and r.channel_num == \"Mains_A\" then \"Example Panel 1 - Channel Mains_A\" else if r.device_gid == \"100001\" and r.channel_num == \"Mains_B\" then \"Example Panel 1 - Channel Mains_B\" else if r.device_gid == \"100001\" and r.channel_num == \"Mains_C\" then \"Example Panel 1 - Channel Mains_C\" else if r.device_gid == \"100002\" and r.channel_num == \"1,2,3\" then \"Example Panel 2 - Channel 1,2,3\" else if r.device_gid == \"100002\" and r.channel_num == \"1\" then \"Example Panel 2 - Channel 1\" else if r.device_gid == \"100002\" and r.channel_num == \"2\" then \"Example Panel 2 - Channel 2\" else if r.device_gid == \"100002\" and r.channel_num == \"3\" then \"Example Panel 2 - Channel 3\" else if r.device_gid == \"100002\" and r.channel_num == \"4\" then \"Example Panel 2 - Channel 3\" else if r.device_gid == \"100002\" and r.channel_num == \"5\" then \"Example Panel 2 - Channel 2\" else if r.device_gid == \"100002\" and r.channel_num == \"6\" then \"Example Panel 2 - Channel 6\" else if r.device_gid == \"100002\" and r.channel_num == \"7\" then \"Example Panel 2 - Channel 7\" else if r.device_gid == \"100002\" and r.channel_num == \"8\" then \"Example Panel 2 - Channel 7\" else if r.device_gid == \"100002\" and r.channel_num == \"9\" then \"Example Panel 2 - Channel 6\" else if r.device_gid == \"100002\" and r.channel_num == \"10\" then \"Example Panel 2 - Channel 10\" else if r.device_gid == \"100002\" and r.channel_num == \"11\" then \"Example Panel 2 - Channel 11\" else if r.device_gid == \"100002\" and r.channel_num == \"12\" then \"Example Panel 2 - Channel 12\" else if r.device_gid == \"100002\" and r.channel_num == \"13\" then \"Example Panel 2 - Channel 13\" else if r.device_gid == \"100002\" and r.channel_num == \"14\" then \"Example Panel 2 - Channel 14\" else if r.device_gid == \"100002\" and r.channel_num == \"15\" then \"Example Panel 2 - Channel 15\" else if r.device_gid == \"100002\" and r.channel_num == \"16\" then \"Example Panel 2 - Channel 16\" else if r.device_gid == \"100002\" and r.channel_num == \"Mains_A\" then \"Example Panel 2 - Channel Mains_A\" else if r.device_gid == \"100002\" and r.channel_num == \"Mains_B\" then \"Example Panel 2 - Channel Mains_B\" else if r.device_gid == \"100002\" and r.channel_num == \"Mains_C\" then \"Example Panel 2 - Channel Mains_C\" else if r.device_gid == \"100002\" and r.channel_num == \"97\" then \"Example Panel 2 - Channel 2\" else if r.device_gid == \"100002\" and r.channel_num == \"98\" then \"Example Panel 2 - Channel 3\" else if r.device_gid == \"100002\" and r.channel_num == \"99\" then \"Example Panel 2 - Channel 6\" else if r.device_gid == \"100002\" and r.channel_num == \"100\" then \"Example Panel 2 - Channel 7\" else r.channel_num}))\n  |> keep(columns: [\"_time\", \"account_name\", \"device_gid\", \"channel_num\", \"channel_name\", \"station_name\", \"power_watts\", \"voltage_volts\", \"current_amps\", \"energy_kwh\", \"charge_ah\", \"detailed\"])\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 200)",
+          "refId": "A"
+        }
+      ],
+      "title": "Raw Electrical Telemetry",
+      "type": "table"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 40,
+  "tags": [
+    "vuegraf",
+    "telemetry",
+    "electrical"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": "Minute",
+          "value": "False"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Resolution",
+        "multi": false,
+        "name": "detail",
+        "options": [
+
+        ],
+        "query": "Minute : False,Second : True",
+        "type": "custom"
+      },
+      {
+        "current": {
+          "text": "All",
+          "value": ".*"
+        },
+        "datasource": {
+          "type": "influxdb",
+          "uid": "emporia-influxdb"
+        },
+        "definition": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: v.defaultBucket, tag: \"account_name\", predicate: (r) => r._measurement == \"electrical_telemetry\")",
+        "includeAll": true,
+        "multi": true,
+        "name": "account",
+        "query": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: v.defaultBucket, tag: \"account_name\", predicate: (r) => r._measurement == \"electrical_telemetry\")",
+        "refresh": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "All",
+          "value": ".*"
+        },
+        "datasource": {
+          "type": "influxdb",
+          "uid": "emporia-influxdb"
+        },
+        "definition": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: v.defaultBucket, tag: \"device_gid\", predicate: (r) => r._measurement == \"electrical_telemetry\")",
+        "includeAll": true,
+        "multi": true,
+        "name": "device",
+        "query": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: v.defaultBucket, tag: \"device_gid\", predicate: (r) => r._measurement == \"electrical_telemetry\")",
+        "refresh": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "All",
+          "value": ".*"
+        },
+        "datasource": {
+          "type": "influxdb",
+          "uid": "emporia-influxdb"
+        },
+        "definition": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: v.defaultBucket, tag: \"channel_num\", predicate: (r) => r._measurement == \"electrical_telemetry\")",
+        "includeAll": true,
+        "multi": true,
+        "name": "channel",
+        "query": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: v.defaultBucket, tag: \"channel_num\", predicate: (r) => r._measurement == \"electrical_telemetry\")",
+        "refresh": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "VueGraf Electrical Telemetry",
+  "uid": "vuegraf-electrical-telemetry",
+  "version": 12
+}

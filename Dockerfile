@@ -1,39 +1,30 @@
 FROM python:3.13-slim AS builder
 
-LABEL description="Vuegraf Official Image"
-LABEL maintainer="Jason Ertel"
+WORKDIR /build
+COPY setup.py README.md ./
+COPY src ./src
+RUN pip wheel --no-cache-dir --wheel-dir /wheels .
 
-COPY . /tmp/vuegraf
-
-RUN rm -fr /tmp/vuegraf/dist && \
-    cd /tmp/vuegraf && \
-    pip install --root-user-action=ignore --upgrade pip && \
-    pip install --root-user-action=ignore build && \
-    python -m build
-
-FROM docker.io/library/python:3-alpine
+FROM python:3.13-slim
 
 ARG GID=1012
 ARG UID=1012
-ARG USERNAME=vuegraf
+LABEL org.opencontainers.image.source="https://github.com/knight9/vuegraf" \
+      org.opencontainers.image.description="VueGraf with per-channel electrical telemetry and history"
 
-COPY --from=builder /tmp/vuegraf/dist/*.tar.gz /tmp/
+ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 
-RUN mkdir -p /opt/vuegraf
-RUN addgroup -S -g $GID vuegraf
-RUN adduser  -S -g $GID -u $UID -h /opt/vuegraf vuegraf
+COPY --from=builder /wheels /wheels
+RUN pip install --no-cache-dir --no-index --find-links=/wheels vuegraf \
+    && rm -rf /wheels \
+    && groupadd --gid "$GID" vuegraf \
+    && useradd --uid "$UID" --gid "$GID" --home-dir /opt/vuegraf --create-home vuegraf \
+    && mkdir -p /opt/vuegraf/conf \
+    && chown vuegraf:vuegraf /opt/vuegraf/conf
 
 WORKDIR /opt/vuegraf
 
-RUN set -x && \
-    apk add --no-cache build-base libffi-dev rust cargo openssl-dev && \
-    pip install --root-user-action=ignore --upgrade pip && \
-    pip install --root-user-action=ignore /tmp/*.tar.gz && \
-    rm -rf /tmp/* && \
-    apk del build-base libffi-dev rust cargo openssl-dev && \
-    rm -rf /var/cache/apk
-
-USER $UID
+USER ${UID}:${GID}
 
 ENTRYPOINT ["vuegraf" ]
 CMD ["/opt/vuegraf/conf/vuegraf.json"]

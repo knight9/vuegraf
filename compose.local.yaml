@@ -1,0 +1,17 @@
+# Local packaging smoke test: no credentials or database writes.
+name: vuegraf-local
+services:
+  vuegraf:
+    image: vuegraf-telemetry:local
+    build:
+      context: .
+    command: ["--help"]
+    network_mode: none
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: "no"

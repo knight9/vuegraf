@@ -1,0 +1,14 @@
+{
+  "timezone": "America/Los_Angeles",
+  "addStationField": true,
+  "updateIntervalSecs": 60,
+  "detailedDataEnabled": true,
+  "detailedDataSecondsEnabled": true,
+  "detailedDataHoursEnabled": true,
+  "detailedDataDaysEnabled": true,
+  "detailedIntervalSecs": 3600,
+  "telemetry": {
+    "enabled": true,
+    "metrics": ["energy", "current", "voltage"]
+  }
+}
