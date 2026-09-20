@@ -4,10 +4,22 @@ require 'json'
 require 'yaml'
 require 'base64'
 require 'open3'
+require 'optparse'
+
+recovery_test = false
+OptionParser.new do |parser|
+  parser.on('--recovery-test', 'Prepare separate private inputs for local gap-recovery testing') { recovery_test = true }
+end.parse!
 
 root = File.expand_path('..', __dir__)
 Dir.chdir(root)
 settings = JSON.parse(File.read('deploy/collector-settings.json'))
+if recovery_test
+  settings.fetch('telemetry')['recovery'] = {
+    'enabled' => true, 'statePath' => '/opt/vuegraf/state/coverage.sqlite3',
+    'initialLookbackSecs' => 60, 'maxRequestsPerCycle' => 12, 'pauseSecs' => 0.2
+  }
+end
 account_config = JSON.parse(File.read('int/vuegraf.json'))
 raw, errors, status = Open3.capture3('docker', '--context', 'orbstack', 'compose',
   '--env-file', 'int/.env', '-f', 'compose.integration.yaml', 'config', '--format', 'json')
@@ -29,11 +41,12 @@ ds['jsonData']['defaultBucket'] = influx['bucket']
 ds['secureJsonData']['token'] = influx['token']
 File.umask(0o077)
 # Keep the user's original .env and vuegraf.json untouched.
-File.open('int/stack.env', 'w', 0o600) do |file|
+output = recovery_test ? 'int/recovery.env' : 'int/stack.env'
+File.open(output, 'w', 0o600) do |file|
   file.write(File.read('int/.env'))
   file.puts
   file.puts "VUEGRAF_CONFIG_B64=#{Base64.strict_encode64(JSON.generate(config))}"
   file.puts "GRAFANA_DATASOURCE_B64=#{Base64.strict_encode64(YAML.dump(datasource))}"
 end
-File.chmod(0o600, 'int/stack.env')
-puts 'Prepared int/stack.env (private). Telemetry enabled; debug off; datasource emporia-influxdb.'
+File.chmod(0o600, output)
+puts "Prepared #{output} (private). Telemetry enabled; debug off; datasource emporia-influxdb."

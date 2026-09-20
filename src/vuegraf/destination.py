@@ -158,6 +158,8 @@ def pointsMissingFrom(config, name, usageDataPoints):
 
 def initConnection(config):
     validateDestination(config)
+    from vuegraf.telemetry_recovery import initialize
+    initialize(config)
     if usesInflux(config):
         influx.initInfluxConnection(config)
     if usesVictoriaMetrics(config):
@@ -171,6 +173,10 @@ def writeDataPoints(config, usageDataPoints):
         influx.writeInfluxPoints(config, pointsMissingFrom(config, INFLUX, usageDataPoints))
     if usesVictoriaMetrics(config):
         victoriametrics.writePoints(config, pointsMissingFrom(config, VICTORIA_METRICS, usageDataPoints))
+    # Commit coverage only after every configured database acknowledges the batch.
+    # A crash before this commit causes safe, idempotent replay, never lost gaps.
+    if config.get('_telemetryRecovery') is not None:
+        config['_telemetryRecovery'].record(usageDataPoints)
     # Records no resume point, so it is offered every point and does its own filtering.
     if usesMqtt(config):
         publishMqttMessagesIfConnected(config, usageDataPoints)
@@ -178,5 +184,7 @@ def writeDataPoints(config, usageDataPoints):
 
 
 def closeConnection(config):
+    if config.get('_telemetryRecovery') is not None:
+        config['_telemetryRecovery'].close()
     if usesMqtt(config):
         stopMqttIfConnected(config)

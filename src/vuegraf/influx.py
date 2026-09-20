@@ -189,7 +189,8 @@ def writeInfluxPoints(config, usageDataPoints):
             write_api = config['influx'].write_api(write_options=influxdb_client.client.write_api.SYNCHRONOUS)
             write_api.write(bucket=bucket, record=influxPoints)
         else:
-            config['influx'].write_points(influxPoints, batch_size=5000)
+            if config['influx'].write_points(influxPoints, batch_size=5000) is False:
+                raise RuntimeError('InfluxDB did not acknowledge the write')
 
 
 def dumpPoints(config, label, usageDataPoints):

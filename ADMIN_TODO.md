@@ -5,10 +5,17 @@ in production.
 
 ## Priority 1: Automatic telemetry gap recovery
 
-Complete this before the admin UI/API work. The current telemetry minute path
-records snapshots without automatically recovering minutes missed during long
-collection cycles; legacy `energy_usage` recovery does not fill those telemetry
-gaps.
+Implementation in progress on `feature/telemetry-gap-recovery`: opt-in persistent
+coverage ledger and bounded repair are implemented. Offline regressions and a
+disposable local InfluxDB/container-restart test pass. Live local testing also
+verified recovery after a five-minute outage and a long second-data batch,
+second coverage within the configured recovery window, and working Grafana
+panels. See `RECOVERY.md` for results and remaining source/coverage limitations.
+Production rollout remains outstanding; production is unchanged.
+
+Complete this before the admin UI/API work. The default telemetry minute path
+still records snapshots without recovery unless the opt-in feature is enabled;
+legacy `energy_usage` recovery does not fill those telemetry gaps.
 
 - [ ] Track durable, successfully written collection boundaries per account,
   device/channel, metric, and resolution. Restore recovery state after restart;

@@ -19,8 +19,8 @@ RUN pip install --no-cache-dir --no-index --find-links=/wheels vuegraf \
     && rm -rf /wheels \
     && groupadd --gid "$GID" vuegraf \
     && useradd --uid "$UID" --gid "$GID" --home-dir /opt/vuegraf --create-home vuegraf \
-    && mkdir -p /opt/vuegraf/conf \
-    && chown vuegraf:vuegraf /opt/vuegraf/conf
+    && mkdir -p /opt/vuegraf/conf /opt/vuegraf/state \
+    && chown vuegraf:vuegraf /opt/vuegraf/conf /opt/vuegraf/state
 
 WORKDIR /opt/vuegraf
 

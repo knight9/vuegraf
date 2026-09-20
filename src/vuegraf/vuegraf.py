@@ -30,6 +30,7 @@ from vuegraf.config import getConfigValue, initConfig
 from vuegraf.device import initDeviceAccount
 from vuegraf.destination import closeConnection, initConnection, writeDataPoints
 from vuegraf.time import getCurrentHourUTC, getCurrentDayLocal, getTimeNow
+from vuegraf.telemetry_recovery import recover
 
 
 logger = logging.getLogger('vuegraf')
@@ -118,6 +119,10 @@ def run():
 
         # Save accumulated data points into the configured destinations
         writeDataPoints(config, usageDataPoints)
+
+        # Sequential, bounded repair after normal writes. No extra worker or
+        # concurrent Emporia requests; snapshots never stand in for missed minutes.
+        recover(config, config['accounts'], nowLagUTC, collectDetails, pauseEvent)
 
         if collectDetails:
             detailedStartTimeUTC = nowLagUTC + datetime.timedelta(seconds=1)

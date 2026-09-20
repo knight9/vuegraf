@@ -24,6 +24,9 @@ Do not use production database settings for local tests.
 The full local stack follows production's config-init flow and service versions.
 See [INTEGRATION.md](INTEGRATION.md): prepare inputs with
 `ruby scripts/prepare-local-stack.rb` and use `int/stack.env` for that stack.
+Opt-in telemetry gap recovery uses a separate persistent state volume; see
+[RECOVERY.md](RECOVERY.md). The feature remains disabled in shared settings
+until local acceptance testing is complete.
 
 After local tests pass, build for the Ubuntu server's architecture:
 
