@@ -11,7 +11,9 @@ disposable local InfluxDB/container-restart test pass. Live local testing also
 verified recovery after a five-minute outage and a long second-data batch,
 second coverage within the configured recovery window, and working Grafana
 panels. See `RECOVERY.md` for results and remaining source/coverage limitations.
-Production rollout remains outstanding; production is unchanged.
+Production rollout completed on 2026-09-19; see `deploy/RECOVERY_RELEASE.md`.
+Initial production writes/recovery and dashboard rendering passed; the first
+scheduled production second-data batch remains to be verified.
 
 Complete this before the admin UI/API work. The default telemetry minute path
 still records snapshots without recovery unless the opt-in feature is enabled;
