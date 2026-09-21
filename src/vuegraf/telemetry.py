@@ -184,5 +184,6 @@ def collectTelemetry(config, account, stopTimeUTC, collectDetails, points, detai
             account['_telemetrySecondStop'] = detailStop
     except Exception as error:
         # HTTP error strings may contain request details; log only the type/status.
+        account['_telemetryCycleError'] = type(error).__name__
         status = getattr(getattr(error, 'response', None), 'status_code', None)
         logger.warning('Telemetry cycle incomplete (%s, status=%s); will retry next cycle', type(error).__name__, status)

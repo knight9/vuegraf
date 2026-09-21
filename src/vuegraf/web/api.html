@@ -1,0 +1,18 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VueGraf API / AI access</title><link rel="stylesheet" href="/admin.css"></head><body><header><h1>API / AI access</h1><a href="/">Admin</a></header><main>
+<section><h2>Start here</h2><p>Use this authenticated HTTP API, not SSH or Docker. <a href="/api/openapi.json">Download the OpenAPI specification</a>. One username/password accesses both the UI and API. HTTP does not encrypt credentials or data: use only on your trusted home network. Do not expose this service publicly.</p>
+<pre>curl -u "$VUEGRAF_ADMIN_USERNAME:$VUEGRAF_ADMIN_PASSWORD" http://HOST:8080/api/discovery
+curl -u "$VUEGRAF_ADMIN_USERNAME:$VUEGRAF_ADMIN_PASSWORD" http://HOST:8080/api/status
+curl -u "$VUEGRAF_ADMIN_USERNAME:$VUEGRAF_ADMIN_PASSWORD" http://HOST:8080/api/coverage</pre>
+<p>Status reads are cached and do not contact Emporia. Circuits have opaque IDs, account/device/channel identifiers and display names. Available history varies by circuit; a successful collection does not imply complete source coverage.</p></section>
+<section><h2>One-shot second refresh</h2><pre>curl -u "$VUEGRAF_ADMIN_USERNAME:$VUEGRAF_ADMIN_PASSWORD" \
+  -H 'Content-Type: application/json' -H 'X-Vuegraf-Request: 1' \
+  -d '{"lookback_seconds":300,"circuits":[]}' http://HOST:8080/api/collect/second</pre>
+<p>202 means admitted; 409 means busy/not ready and includes current status. There is no job queue. Empty circuits selects all; otherwise use IDs from discovery. Maximum lookback is 10,800 seconds. Poll status to distinguish running, success, partial, failed and interrupted results. Missing/unsupported samples are not zeros.</p></section>
+<section><h2>Download data for tools</h2><pre>curl -u "$VUEGRAF_ADMIN_USERNAME:$VUEGRAF_ADMIN_PASSWORD" \
+  -H 'Content-Type: application/json' -H 'X-Vuegraf-Request: 1' \
+  -d '{"start":"2026-09-19T00:00:00Z","stop":"2026-09-19T01:00:00Z","resolution":"minute","field":"power_watts","aggregate":"mean","window":"5m"}' \
+  http://HOST:8080/api/export -o readings.csv</pre>
+<p>Analyze the CSV with local tools rather than placing every row into chat context. Filters: account, device, channel. Fields: power_watts (W), voltage_volts (V), current_amps (A), energy_kwh (kWh), charge_ah (Ah). UTC timestamps; stop is exclusive. One resolution per request. Date limits: seconds 30 days, minutes 730 days, hours/days 1,825 days. These are query limits, not guarantees of available data.</p>
+<p>Aggregations: raw, mean, min, max; sum only for energy/charge. Windows: 1m, 5m, 15m, 1h, 1d, never finer than the source. Aggregation is per series, UTC-aligned, and skips missing windows. Means are arithmetic means of available samples, not gap-filled time-weighted estimates. Original daily samples follow collector timezone/DST; avoid treating a local day as always 24 hours.</p>
+<p>Do not double-count different resolutions, mains plus branches, or merged circuits plus their legs. At most two exports can run/download concurrently; each is capped at 100,000 rows, 32 MiB and 15 seconds. Oversized exports fail, not silently truncate. Temporary files close after download. Prefixes may be added to textual tags to prevent spreadsheet formula execution.</p>
+<p>401: authentication required; 403: missing action header/cross-origin; 400: invalid query or exceeded limits; 429: exports busy; 502: database error. No arbitrary Flux, shell, database deletion, or Docker administration endpoint is provided.</p></section></main></body></html>

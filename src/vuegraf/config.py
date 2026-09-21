@@ -119,6 +119,9 @@ def initConfig():
     setConfigDefault(config, 'timezone', None)
     setConfigDefault(config, 'maxHistoryDays', 720)
     setConfigDefault(config, 'updateIntervalSecs', 60)
+    setConfigDefault(config, 'legacyEnergyEnabled', True)
+    if not isinstance(config['legacyEnergyEnabled'], bool):
+        raise ValueError('legacyEnergyEnabled must be a boolean')
 
     # Create a sanitized copy for logging and remove sensitive information from it
     sanitized_config = config.copy()

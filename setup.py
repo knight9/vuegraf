@@ -27,6 +27,7 @@ setup(
     },
     packages=find_packages(where='src', exclude=['*_test*']),  # Exclude test files from the package
     package_dir={'':'src'},
+    package_data={'vuegraf': ['web/*.html', 'web/*.js', 'web/*.css']},
     python_requires='>=3.12',
     install_requires=[
         'influxdb>=5.3.2',

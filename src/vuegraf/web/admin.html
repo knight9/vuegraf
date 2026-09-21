@@ -1,0 +1,16 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VueGraf Admin</title><link rel="stylesheet" href="/admin.css"><script src="/admin.js" defer></script></head>
+<body><header><h1>VueGraf Admin</h1><a href="/api-docs">API / AI access</a></header>
+<main><section><h2>Collection</h2><p id="polling" role="status">Connecting…</p><button id="check">Check now</button><p id="message" role="status"></p>
+<p id="active"></p><p id="legacy"></p><table><thead><tr><th>Type</th><th>State</th><th>Last result</th><th>Last completed</th><th>Last success</th><th>Next run</th></tr></thead><tbody id="jobs"></tbody></table>
+<h3>Fetch second data once</h3><p>Runs only when the collector is idle. Busy requests are not queued. This does not enable continuous live collection.</p>
+<label>Circuits (none selected means all)<select id="circuits" multiple size="6"></select></label>
+<label>Lookback seconds <input id="lookback" type="number" min="1" max="10800" value="3600"></label><button id="collect">Fetch latest 1-second data</button>
+<h3>Recovery</h3><p id="recovery-summary"></p><table><thead><tr><th>Resolution</th><th>Streams with gaps</th><th>Missing stream time</th><th>Oldest gap</th></tr></thead><tbody id="recovery"></tbody></table><p class="hint">Missing stream time is summed across channel and metric streams, not wall-clock outage time.</p></section>
+<section><h2>Data export</h2><p>UTC timestamps; end is exclusive. Missing readings remain missing. Do not add mains to branches or merged circuits to their legs.</p>
+<label>Start (UTC ISO timestamp)<input id="start" type="text"></label><label>Stop (UTC ISO timestamp)<input id="stop" type="text"></label>
+<label>Resolution<select id="resolution"><option>second</option><option selected>minute</option><option>hour</option><option>day</option></select></label>
+<label>Metric<select id="field"><option>power_watts</option><option>voltage_volts</option><option>current_amps</option><option>energy_kwh</option><option>charge_ah</option></select></label>
+<label>Aggregation<select id="aggregate"><option>raw</option><option>mean</option><option>sum</option><option>min</option><option>max</option></select></label>
+<label>Window<select id="window"><option>1m</option><option>5m</option><option>15m</option><option selected>1h</option><option>1d</option></select></label>
+<button id="export">Download CSV</button><p>Exports include all circuits. Use the API for account/device/channel filters. Maximum 100,000 rows, 32 MiB, 15 seconds; use aggregation for larger ranges.</p></section>
+<section><h2>Storage and retention</h2><p id="storage-summary" role="status"></p><p id="storage-warning" role="alert"></p><p id="storage-alerts"></p><table><thead><tr><th>Bucket</th><th>Data</th><th>Retention</th><th>Legacy data</th></tr></thead><tbody id="retention"></tbody></table><p class="hint">Updated every five minutes. Retention is not a disk quota. Backups and container logs require separate monitoring. Full structured details remain available from <code>/api/status</code>.</p></section></main></body></html>

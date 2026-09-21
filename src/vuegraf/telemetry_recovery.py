@@ -100,6 +100,8 @@ class Coverage:
                     for name in ('influxDb', 'victoriaMetrics')
                     if (section := config.get(name))}
         identity.update(tags=getTags(config), timezone=config.get('timezone'))
+        if config.get('influxDb', {}).get('telemetryBuckets'):
+            identity['influxDb']['telemetryBuckets'] = config['influxDb']['telemetryBuckets']
         self.scope = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
         # Refuse missing/unwritable parents instead of silently using ephemeral storage.
         fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o600)

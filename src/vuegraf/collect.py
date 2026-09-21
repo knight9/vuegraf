@@ -15,7 +15,7 @@ from vuegraf.config import getConfigValue
 from vuegraf.device import lookupDeviceName, lookupChannelName
 from vuegraf.destination import getLastDBTimeStamp, getTags
 from vuegraf.time import calculateHistoryTimeRange, convertToLocalDayInUTC
-from vuegraf.telemetry import collectTelemetry
+from vuegraf.telemetry import collectTelemetry, selectedMetrics
 from vuegraf.telemetry_history import collectAggregate, collectHistory
 
 
@@ -72,6 +72,8 @@ def extractDataPoints(config, account, device, stopTimeUTC, collectDetails, usag
 
     Modifies usageDataPoints in place, appending Point objects.
     """
+    if not config.get('legacyEnergyEnabled', True):
+        return
     accountName = account['name']
     detailedDataEnabled = getConfigValue(config, 'detailedDataEnabled')
     detailedSecondsEnabled = detailedDataEnabled and getConfigValue(config, 'detailedDataSecondsEnabled')
@@ -250,15 +252,22 @@ def collectUsage(config, account, startTimeUTC, stopTimeUTC, collectDetails, usa
     logger.debug('Collecting data from Emporia; Scale={}; startTimeUTC={}; stopTimeUTC={}'.format(scale, startTimeUTC, stopTimeUTC))
 
     deviceGids = list(account['deviceIdMap'].keys())
-    usages = account['vue'].get_device_list_usage(deviceGids, stopTimeUTC, scale=scale, unit=Unit.KWH.value)
+    legacy = config.get('legacyEnergyEnabled', True)
+    telemetry = config.get('telemetry', {}).get('enabled', False)
+    if not legacy and not telemetry:
+        return
+    usages = None
+    if legacy or (scale == Scale.MINUTE.value and 'energy' in selectedMetrics(config)):
+        usages = account['vue'].get_device_list_usage(deviceGids, stopTimeUTC, scale=scale, unit=Unit.KWH.value)
     if scale == Scale.MINUTE.value:
         collectTelemetry(config, account, stopTimeUTC, collectDetails, usageDataPoints, detailedStartTimeUTC, usages)
     elif config.get('telemetry', {}).get('enabled', False):
         try:
             collectAggregate(config, account, startTimeUTC, scale, usageDataPoints)
         except Exception as error:
+            account['_telemetryCycleError'] = type(error).__name__
             logger.warning('Telemetry aggregate incomplete (%s); rerun history to recover', type(error).__name__)
-    if usages is not None:
+    if legacy and usages is not None:
         for gid, device in usages.items():
             extractDataPoints(config, account, device, stopTimeUTC, collectDetails,
                               usageDataPoints, detailedStartTimeUTC, pointType, startTimeUTC)
@@ -267,6 +276,8 @@ def collectUsage(config, account, startTimeUTC, stopTimeUTC, collectDetails, usa
 def collectHistoryUsage(config, account, startTimeUTC, stopTimeUTC, usageDataPoints: list[Point], pauseEvent):
     """Module entrypoint. Fetches historic Vue data and unpacks it into points."""
     collectHistory(config, account, startTimeUTC, stopTimeUTC, pauseEvent)
+    if not config.get('legacyEnergyEnabled', True):
+        return
     # Grab base usage data for later use in history collection
     deviceGids = list(account['deviceIdMap'].keys())
     usages = account['vue'].get_device_list_usage(deviceGids, stopTimeUTC, scale=Scale.MINUTE.value, unit=Unit.KWH.value)

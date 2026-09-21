@@ -41,7 +41,10 @@ def collectAggregate(config, account, instant, scale, points):
         if channel.channel_num in EXCLUDED:
             continue
         for metric in selectedMetrics(config):
+            before = len(points)
             fetchChart(config, account, channel, metric, start, stop, scale, detail, points, cacheEmpty=False)
+            if len(points) == before:
+                account['_telemetryCycleError'] = 'UnavailableSamples'
 
 
 def historyWindows(config, start, stop):
@@ -86,7 +89,10 @@ def collectHistory(config, account, start, stop, pauseEvent):
     from vuegraf.destination import writeDataPoints
 
     channels = discoverChannels(config, account, stop)
-    for scale, detail, batchStart, batchStop in historyWindows(config, start, stop):
+    windows = list(historyWindows(config, start, stop))
+    total = len(windows) * len(channels) * len(selectedMetrics(config))
+    completed = 0
+    for scale, detail, batchStart, batchStop in windows:
         logger.info('Backfilling telemetry: scale=%s start=%s stop=%s', scale, batchStart, batchStop)
         for channel in channels:
             for metric in selectedMetrics(config):
@@ -96,7 +102,17 @@ def collectHistory(config, account, start, stop, pauseEvent):
                 # Empty old periods must not suppress newer periods for a channel.
                 fetchChart(config, account, channel, metric, batchStart, batchStop,
                            scale, detail, points, cacheEmpty=False)
+                cursor, expected = batchStart, 0
+                while cursor < batchStop:
+                    stamp, seconds = sampleWindow(config, cursor, 0, scale)
+                    cursor = stamp + datetime.timedelta(seconds=seconds)
+                    expected += 1
+                if len({p.timestamp for p in points}) < expected:
+                    account['_telemetryCycleError'] = 'UnavailableSamples'
                 if points:
                     writeDataPoints(config, points)
+                completed += 1
+                if config.get('_collectionProgress'):
+                    config['_collectionProgress'](completed, total)
                 if pauseEvent.wait(0.2):
                     return

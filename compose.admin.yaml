@@ -1,0 +1,44 @@
+# Opt-in overlay for the normal LOCAL integration stack. Never use test credentials in production.
+services:
+  storage-monitor:
+    image: vuegraf-telemetry:admin-dev
+    profiles: ["collector"]
+    user: "0:0"
+    entrypoint: [python, -m, vuegraf.disk_stats]
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [DAC_READ_SEARCH]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 16
+    mem_limit: 128m
+    volumes:
+      - integration-influxdb:/influx-storage:ro
+      - admin-storage-stats:/stats
+    healthcheck:
+      test: [CMD, python, -c, "from vuegraf.disk_stats import read_snapshot; read_snapshot('/stats/disk.json')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+  vuegraf:
+    image: vuegraf-telemetry:admin-dev
+    stop_signal: SIGINT
+    stop_grace_period: 60s
+    depends_on:
+      storage-monitor:
+        condition: service_healthy
+    environment:
+      VUEGRAF_ADMIN_ENABLED: "true"
+      VUEGRAF_ADMIN_BIND: "0.0.0.0"
+      VUEGRAF_ADMIN_PORT: "8080"
+      VUEGRAF_ADMIN_USERNAME: ${VUEGRAF_ADMIN_USERNAME:?Set a private admin username}
+      VUEGRAF_ADMIN_PASSWORD: ${VUEGRAF_ADMIN_PASSWORD:?Set a private admin password}
+    ports:
+      - "127.0.0.1:${VUEGRAF_ADMIN_HOST_PORT:-3001}:8080"
+    volumes:
+      - admin-storage-stats:/storage-stats:ro
+      - admin-recovery-state:/opt/vuegraf/state
+volumes:
+  admin-recovery-state:
+  admin-storage-stats:

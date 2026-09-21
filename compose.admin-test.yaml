@@ -1,0 +1,60 @@
+name: vuegraf-admin-test
+services:
+  influxdb:
+    image: influxdb:2.7-alpine
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: test
+      DOCKER_INFLUXDB_INIT_PASSWORD: test-only-password
+      DOCKER_INFLUXDB_INIT_ORG: admin-test
+      DOCKER_INFLUXDB_INIT_BUCKET: legacy-test
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: admin-test-only-token
+    volumes:
+      - test-influx:/var/lib/influxdb2
+    healthcheck:
+      test: [CMD, influx, ping]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+  admin:
+    image: vuegraf-telemetry:admin-dev
+    depends_on:
+      storage-monitor:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
+    environment:
+      VUEGRAF_ADMIN_USERNAME: admin
+      VUEGRAF_ADMIN_PASSWORD: admin
+    ports:
+      - "127.0.0.1:18080:8080"
+    entrypoint: [python, /test/admin_fixture.py]
+    volumes:
+      - ./tools/admin_fixture.py:/test/admin_fixture.py:ro
+      - test-state:/opt/vuegraf/state
+      - test-stats:/storage-stats:ro
+    stop_signal: SIGINT
+    stop_grace_period: 30s
+  storage-monitor:
+    image: vuegraf-telemetry:admin-dev
+    user: "0:0"
+    entrypoint: [python, -m, vuegraf.disk_stats]
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [DAC_READ_SEARCH]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 16
+    mem_limit: 128m
+    volumes:
+      - test-influx:/influx-storage:ro
+      - test-stats:/stats
+    healthcheck:
+      test: [CMD, python, -c, "from vuegraf.disk_stats import read_snapshot; read_snapshot('/stats/disk.json')"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+volumes:
+  test-influx:
+  test-state:
+  test-stats:

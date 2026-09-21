@@ -8,6 +8,7 @@ import influxdb         # InfluxDB v1
 import influxdb_client  # InfluxDB v2
 import logging
 import pprint
+from collections import defaultdict
 
 from vuegraf.config import getConfigValue, getInfluxTag, getInfluxVersion
 from vuegraf.time import calculateResumeTimeRange, getTimeNow
@@ -116,6 +117,8 @@ def getLastDBTimeStamp(config, deviceName, chanName, pointType, startTime, stopT
 
 
 def initInfluxConnection(config):
+    from vuegraf.storage import validate_routing
+    validate_routing(config)
     sslVerify = True
     if 'ssl_verify' in config['influxDb']:
         sslVerify = config['influxDb']['ssl_verify']
@@ -187,7 +190,17 @@ def writeInfluxPoints(config, usageDataPoints):
         if influxVersion == 2:
             bucket = config['influxDb']['bucket']
             write_api = config['influx'].write_api(write_options=influxdb_client.client.write_api.SYNCHRONOUS)
-            write_api.write(bucket=bucket, record=influxPoints)
+            routing = config['influxDb'].get('telemetryBuckets', {})
+            if routing:
+                tags = dict(zip(getInfluxTag(config)[1:], ('second', 'minute', 'hour', 'day')))
+                batches = defaultdict(list)
+                for original, point in zip(usageDataPoints, influxPoints):
+                    target = routing[tags[original.detailed]] if isinstance(original, TelemetryPoint) else bucket
+                    batches[target].append(point)
+                for target, points in batches.items():
+                    write_api.write(bucket=target, record=points)
+            else:
+                write_api.write(bucket=bucket, record=influxPoints)
         else:
             if config['influx'].write_points(influxPoints, batch_size=5000) is False:
                 raise RuntimeError('InfluxDB did not acknowledge the write')

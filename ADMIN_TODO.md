@@ -1,7 +1,33 @@
 # Admin web page TODO
 
-Planning only: these features and policies are not yet implemented or enabled
-in production.
+Recovery is deployed. The admin/controller/API, legacy switch, storage visibility,
+and retention tooling are implemented locally but are **not deployed**. See
+`ADMIN.md` for setup, tests, constraints and the non-destructive migration plan.
+The original requirements below remain the acceptance checklist; unchecked items
+must not be read as claims that the production release includes these features.
+
+## Current implementation checkpoint
+
+- [x] One collector worker, shared no-queue admission, and cached status API.
+- [x] Authenticated UI/API, manual circuit-selectable seconds, inactivity polling.
+- [x] Discovery/observed coverage, bounded CSV exports, API documentation/OpenAPI.
+- [x] Configurable legacy-recording disable switch, including historical paths.
+- [x] Cached disk/bucket retention status, growth estimates, low-space warning,
+  optional rate-limited webhook (disabled until explicitly configured).
+- [x] Resolution bucket routing and non-destructive provisioning/copy/hash verification.
+- [x] Separate retention-aware dashboard generation, including variable queries.
+- [x] Real-Emporia local acceptance: a one-circuit 60-second manual refresh
+  succeeded, exported 60 power samples, and existing Grafana query checks passed
+  with legacy recording disabled. Real local collector stopped afterward.
+- [ ] Operator notification destination, if out-of-band warnings are wanted.
+- [ ] Production migration/cutover review and approval; no source data deletion authorized.
+- [ ] Hard filesystem quota selection/enforcement remains an infrastructure decision.
+- [x] Isolated, network-free storage monitor with read-only InfluxDB access;
+  collector UID 1012 receives only size statistics, not database files.
+
+Job timestamps/status and growth observations currently reset with the process;
+recovery coverage remains persistent. Quota detection is not implemented: the UI
+explicitly reports no verified hard quota rather than inventing one.
 
 ## Priority 1: Automatic telemetry gap recovery
 

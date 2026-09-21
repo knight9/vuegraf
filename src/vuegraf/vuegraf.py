@@ -18,6 +18,7 @@ __status__ = 'Production'
 
 import datetime
 import logging
+import os
 import signal
 import sys
 import threading
@@ -42,6 +43,11 @@ def run():
 
     config = initConfig()
     logger.info('Starting Vuegraf version {}'.format(__version__))
+
+    if os.environ.get('VUEGRAF_ADMIN_ENABLED', '').lower() == 'true':
+        from vuegraf.admin_runtime import serve_admin
+        serve_admin(config, pauseEvent)
+        return
 
     initConnection(config)
 
@@ -148,6 +154,7 @@ def main(args=None):
     try:
         signal.signal(signal.SIGINT, handleExitSignal)
         signal.signal(signal.SIGHUP, handleExitSignal)
+        signal.signal(signal.SIGTERM, handleExitSignal)
         run()
     except SystemExit as e:
         # If sys.exit was 2, then normal syntax exit from help or bad command line, no error message

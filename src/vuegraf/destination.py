@@ -169,6 +169,11 @@ def initConnection(config):
 
 
 def writeDataPoints(config, usageDataPoints):
+    if not config.get('legacyEnergyEnabled', True):
+        from vuegraf.telemetry import TelemetryPoint
+        usageDataPoints = [point for point in usageDataPoints if isinstance(point, TelemetryPoint)]
+        if not usageDataPoints:
+            return
     if usesInflux(config):
         influx.writeInfluxPoints(config, pointsMissingFrom(config, INFLUX, usageDataPoints))
     if usesVictoriaMetrics(config):
