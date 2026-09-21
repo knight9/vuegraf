@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from pyemvue.device import VueDeviceChannelUsage
 from vuegraf.admin_runtime import Runtime
+from vuegraf import telemetry_recovery
 
 
 def runtime():
@@ -68,3 +69,28 @@ def test_manual_range_does_not_advance_full_schedule_or_activate_account_recover
     assert result['result'] == 'success'
     assert value.last_second_stop == previous
     value.repair.assert_not_called()
+
+
+@patch('vuegraf.admin_runtime.recover')
+def test_repair_status_separates_permanently_unavailable_intervals(recover, tmp_path):
+    value, account, _ = runtime()
+    value.config['args'] = SimpleNamespace(dryrun=False, resetdatabase=False)
+    value.config['telemetry']['recovery'] = {
+        'enabled': True, 'statePath': str(tmp_path / 'coverage.sqlite3'),
+        'initialLookbackSecs': 60}
+    telemetry_recovery.initialize(value.config)
+    store = value.config['_telemetryRecovery']
+    now = dt.datetime(2026, 9, 20, 12, tzinfo=dt.UTC)
+    key = store.key(account['name'], 42, '1', 'energy', '1MIN')
+    start = int((now - dt.timedelta(minutes=2)).timestamp())
+    stop = int((now - dt.timedelta(minutes=1)).timestamp())
+    with store.db:
+        store.db.execute('INSERT INTO streams(key, start) VALUES (?, ?)', (key, start))
+    store.mark_unavailable(key, start, stop, int(now.timestamp()), 5)
+
+    value.repair(now, False)
+
+    status = value.controller.snapshot()
+    assert status['recovery']['permanently_unavailable_intervals'] == 1
+    assert status['recovery']['permanently_unavailable_stream_seconds'] == 60
+    assert status['jobs']['recovery']['last_result'] == 'partial'

@@ -53,7 +53,7 @@ async function poll() {
       catalogSignature = signature;
     }
     const recovery = status.recovery || {};
-    el('recovery-summary').textContent = `${recovery.streams || 0} tracked streams · ${recovery.deferred_intervals || 0} deferred intervals · ${duration(recovery.expired_stream_seconds || 0)} expired`;
+    el('recovery-summary').textContent = `${recovery.streams || 0} tracked streams · ${recovery.deferred_intervals || 0} deferred intervals · ${recovery.permanently_unavailable_intervals || 0} unavailable intervals (${duration(recovery.permanently_unavailable_stream_seconds || 0)}) · ${duration(recovery.expired_stream_seconds || 0)} expired`;
     el('recovery').replaceChildren();
     Object.entries(recovery.remaining || {}).forEach(([resolution, gaps]) => addRow(el('recovery'), [resolution, gaps.streams_with_gaps || 0, duration(gaps.missing_stream_seconds || 0), format(gaps.oldest_gap)]));
     const disk = status.storage.filesystem;

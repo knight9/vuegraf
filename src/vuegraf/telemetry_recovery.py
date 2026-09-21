@@ -72,7 +72,8 @@ def initialize(config):
         raise ValueError('Telemetry recovery requires an absolute persistent statePath')
     for name, default, minimum, maximum in (
             ('initialLookbackSecs', 3600, 60, 7 * 86400),
-            ('maxRequestsPerCycle', 12, 1, 100),
+            ('maxRequestsPerCycle', 3, 1, 100),
+            ('unavailableAfterAttempts', 5, 1, 100),
             ('pauseSecs', 0.2, 0, 60)):
         value = settings.get(name, default)
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
@@ -117,6 +118,10 @@ class Coverage:
             CREATE TABLE IF NOT EXISTS deferred (
                 key TEXT, start INTEGER, stop INTEGER, due INTEGER, attempts INTEGER);
             CREATE INDEX IF NOT EXISTS deferred_key ON deferred(key, start);
+            CREATE TABLE IF NOT EXISTS unavailable (
+                key TEXT, start INTEGER, stop INTEGER, since INTEGER,
+                attempts INTEGER, reason TEXT);
+            CREATE INDEX IF NOT EXISTS unavailable_key ON unavailable(key, start);
             CREATE TABLE IF NOT EXISTS control (
                 scope TEXT, name TEXT, value INTEGER, PRIMARY KEY(scope, name));
         ''')
@@ -157,9 +162,18 @@ class Coverage:
                 for start, stop, due, attempts in pending:
                     self.db.executemany('INSERT INTO deferred VALUES (?, ?, ?, ?, ?)',
                                         [(key, left, right, due, attempts) for left, right in holes(start, stop, merged)])
+                unavailable = self.db.execute(
+                    'SELECT start, stop, since, attempts, reason FROM unavailable WHERE key=?',
+                    (key,)).fetchall()
+                self.db.execute('DELETE FROM unavailable WHERE key=?', (key,))
+                for start, stop, since, attempts, reason in unavailable:
+                    self.db.executemany('INSERT INTO unavailable VALUES (?, ?, ?, ?, ?, ?)',
+                                        [(key, left, right, since, attempts, reason)
+                                         for left, right in holes(start, stop, merged)])
 
     def missing(self, key, start, stop, now, honor_backoff=True):
         covered = self.db.execute('SELECT start, stop FROM coverage WHERE key=?', (key,)).fetchall()
+        covered += self.db.execute('SELECT start, stop FROM unavailable WHERE key=?', (key,)).fetchall()
         if honor_backoff:
             covered += self.db.execute('SELECT start, stop FROM deferred WHERE key=? AND due>?',
                                        (key, now)).fetchall()
@@ -181,6 +195,7 @@ class Coverage:
                                 (new_start, expired, key))
                 self.db.execute('DELETE FROM coverage WHERE key=? AND stop<=?', (key, new_start))
                 self.db.execute('DELETE FROM deferred WHERE key=? AND stop<=?', (key, new_start))
+                self.db.execute('DELETE FROM unavailable WHERE key=? AND stop<=?', (key, new_start))
                 lower = new_start
                 if expired:
                     logger.warning('Telemetry recovery: %s seconds of missing coverage expired at source', expired)
@@ -218,6 +233,32 @@ class Coverage:
                         self.db.execute('INSERT INTO deferred VALUES (?, ?, ?, ?, ?)', (key, a, b, due, tries))
             self.db.execute('INSERT INTO deferred VALUES (?, ?, ?, ?, ?)',
                             (key, start, stop, now + min(3600, 300 * 2 ** min(previous, 4)), attempts))
+        return attempts
+
+    def mark_unavailable(self, key, start, stop, now, attempts, reason='empty_after_retries'):
+        """Persist a source interval that should no longer consume recovery requests."""
+        overlapping = self.db.execute(
+            'SELECT start, stop, since, attempts, reason FROM unavailable '
+            'WHERE key=? AND start<=? AND stop>=?', (key, stop, start)).fetchall()
+        merged_start = min([start] + [row[0] for row in overlapping])
+        merged_stop = max([stop] + [row[1] for row in overlapping])
+        since = min([now] + [row[2] for row in overlapping])
+        attempts = max([attempts] + [row[3] for row in overlapping])
+        with self.db:
+            pending = self.db.execute(
+                'SELECT start, stop, due, attempts FROM deferred WHERE key=? AND start<? AND stop>?',
+                (key, merged_stop, merged_start)).fetchall()
+            self.db.execute('DELETE FROM deferred WHERE key=? AND start<? AND stop>?',
+                            (key, merged_stop, merged_start))
+            for left, right, due, tries in pending:
+                for a, b in ((left, min(right, merged_start)), (max(left, merged_stop), right)):
+                    if a < b:
+                        self.db.execute('INSERT INTO deferred VALUES (?, ?, ?, ?, ?)',
+                                        (key, a, b, due, tries))
+            self.db.execute('DELETE FROM unavailable WHERE key=? AND start<=? AND stop>=?',
+                            (key, merged_stop, merged_start))
+            self.db.execute('INSERT INTO unavailable VALUES (?, ?, ?, ?, ?, ?)',
+                            (key, merged_start, merged_stop, since, attempts, reason))
 
     def close(self):
         self.db.close()
@@ -229,6 +270,11 @@ class Coverage:
                                 'DO UPDATE SET value=MAX(value, excluded.value)', (self.scope, name, value))
         row = self.db.execute('SELECT value FROM control WHERE scope=? AND name=?', (self.scope, name)).fetchone()
         return row[0] if row else 0
+
+    def set_control(self, name, value):
+        with self.db:
+            self.db.execute('INSERT INTO control VALUES (?, ?, ?) ON CONFLICT(scope, name) '
+                            'DO UPDATE SET value=excluded.value', (self.scope, name, value))
 
 
 def recover(config, accounts, instant, seconds_due, pause):
@@ -281,7 +327,7 @@ def recover(config, accounts, instant, seconds_due, pause):
     slots = [Scale.MINUTE.value] * 6 + [Scale.SECOND.value] * 3 + [Scale.HOUR.value] * 2 + [Scale.DAY.value]
     turn = store.control('schedule_turn')
     selected = []
-    while len(selected) < int(store.settings.get('maxRequestsPerCycle', 12)) and any(queues.values()):
+    while len(selected) < int(store.settings.get('maxRequestsPerCycle', 3)) and any(queues.values()):
         queue = queues[slots[turn % len(slots)]]
         turn += 1
         if queue:
@@ -303,16 +349,29 @@ def recover(config, accounts, instant, seconds_due, pause):
             if points:
                 writeDataPoints(config, points)
             for left, right in store.missing(key, start, stop, now, False):
-                store.defer(key, left, right, now)
-                logger.info('Telemetry recovery incomplete: scale=%s metric=%s missing_seconds=%s; retry deferred',
-                            scale, metric, right - left)
+                attempts = store.defer(key, left, right, now)
+                threshold = int(store.settings.get('unavailableAfterAttempts', 5))
+                if attempts >= threshold:
+                    store.mark_unavailable(key, left, right, now, attempts)
+                    logger.warning('Telemetry recovery marked source interval unavailable: '
+                                   'scale=%s metric=%s missing_seconds=%s attempts=%s',
+                                   scale, metric, right - left, attempts)
+                else:
+                    logger.info('Telemetry recovery incomplete: scale=%s metric=%s missing_seconds=%s; '
+                                'retry deferred (attempt %s of %s)',
+                                scale, metric, right - left, attempts, threshold)
+            store.set_control('failure_attempts', 0)
         except Exception as error:
             store.defer(key, start, stop, now)
-            store.control('cooldown', now + 300)
+            failures = store.control('failure_attempts') + 1
+            store.set_control('failure_attempts', failures)
+            cooldown = min(3600, 300 * 2 ** min(failures - 1, 4))
+            store.control('cooldown', now + cooldown)
             # Never log exception messages or URLs; they can contain credentials.
             status = getattr(getattr(error, 'response', None), 'status_code', None)
-            logger.warning('Telemetry recovery interrupted (%s, status=%s); coverage retained for retry',
-                           type(error).__name__, status)
+            logger.warning('Telemetry recovery interrupted (%s, status=%s); '
+                           'coverage retained for retry after %s seconds',
+                           type(error).__name__, status, cooldown)
             return  # Stop this cycle on authentication, rate-limit, transport or write errors.
         if pause.wait(store.settings.get('pauseSecs', 0.2)):
             return

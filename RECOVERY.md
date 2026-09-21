@@ -12,7 +12,8 @@ No production configuration is changed by this feature branch.
     "enabled": true,
     "statePath": "/opt/vuegraf/state/coverage.sqlite3",
     "initialLookbackSecs": 3600,
-    "maxRequestsPerCycle": 12,
+    "maxRequestsPerCycle": 3,
+    "unavailableAfterAttempts": 5,
     "pauseSecs": 0.2
   }
 }
@@ -51,7 +52,7 @@ increasing this setting does not rewind streams already registered. Plan the
 extra API load before doing this. Keep an existing ledger across ordinary
 restarts so outages since its recorded origin remain recoverable.
 
-Each cycle runs normal collection/writes first, then at most 12 additional
+Each cycle runs normal collection/writes first, then at most three additional
 channel/metric chart requests, sequentially, with a 0.2-second pause. Fair
 selection rotates among streams; a backlog can take multiple cycles to clear.
 Weighted round-robin reserves turns for all resolutions, favoring minutes over
@@ -68,10 +69,15 @@ unfinished work can continue in subsequent minute cycles up to that scheduled
 target; it does not turn on continuous second polling. Hour/day repair is only
 enabled when the corresponding detailed collection settings are enabled.
 
-Missing/unsupported source readings remain unresolved, with retries starting
-after five minutes and backing off to one hour. Authentication, rate-limit,
-transport, or write failures stop repair for the cycle and impose a five-minute
-repair cooldown. This cooldown does not alter the pre-existing normal collector.
+Missing/unsupported source readings are retried five times, starting after five
+minutes and backing off to one hour. After the fifth empty response, that exact
+stream interval is recorded as permanently unavailable in the same persistent
+SQLite ledger and no longer consumes recovery requests. A later successful
+normal or recovery write removes any overlapping unavailable interval, so real
+data always supersedes the suppression. Authentication, rate-limit, transport,
+or write failures stop repair for the cycle and impose a global cooldown that
+backs off from five minutes to one hour. A completed recovery request resets
+that error backoff. This cooldown does not alter the pre-existing normal collector.
 Recent intervals continue to be eligible even when older source readings are
 unavailable. Synthetic balance/total/from-grid/to-grid channels are excluded
 from chart repair, as in the historical import.

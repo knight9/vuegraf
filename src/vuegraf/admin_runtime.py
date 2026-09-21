@@ -164,7 +164,7 @@ class Runtime:
             pending = store.db.execute('SELECT count(*) FROM deferred').fetchone()[0]
             cooldown = store.control('cooldown') > instant.timestamp()
             remaining = {}
-            stream_count, expired = 0, 0
+            stream_count, expired, unavailable_count, unavailable_seconds = 0, 0, 0, 0
             for key, start, expired_seconds in store.db.execute('SELECT key, start, expired_seconds FROM streams'):
                 identity = json.loads(key)
                 if identity[0] != store.scope:
@@ -181,16 +181,27 @@ class Runtime:
                     summary['missing_stream_seconds'] += sum(right - left for left, right in holes)
                     oldest = dt.datetime.fromtimestamp(holes[0][0], dt.UTC).isoformat()
                     summary['oldest_gap'] = min(summary['oldest_gap'] or oldest, oldest)
+                unavailable = store.db.execute(
+                    'SELECT start, stop FROM unavailable WHERE key=? AND start<? AND stop>?',
+                    (key, upper, start)).fetchall() if upper > start else []
+                unavailable_count += len(unavailable)
+                unavailable_seconds += sum(min(right, upper) - max(left, start)
+                                           for left, right in unavailable)
                 stream_count += 1
                 expired += expired_seconds
-            incomplete = cooldown or any(s['streams_with_gaps'] for s in remaining.values())
+            incomplete = (cooldown or unavailable_count > 0 or
+                          any(s['streams_with_gaps'] for s in remaining.values()))
             with self.controller.condition:
                 self.controller.recovery = {'streams': stream_count, 'deferred_intervals': pending,
+                                            'permanently_unavailable_intervals': unavailable_count,
+                                            'permanently_unavailable_stream_seconds': unavailable_seconds,
                                             'expired_stream_seconds': expired, 'remaining': remaining,
                                             'note': 'Durations sum across channel/metric streams; not wall-clock outage duration.'}
                 status.update(state='idle', last_completion=timestamp(),
                               last_result='partial' if incomplete else 'success',
-                              details={'deferred_intervals': pending, 'cooldown': cooldown})
+                              details={'deferred_intervals': pending,
+                                       'permanently_unavailable_intervals': unavailable_count,
+                                       'cooldown': cooldown})
                 if not incomplete:
                     status['last_success'] = status['last_completion']
 

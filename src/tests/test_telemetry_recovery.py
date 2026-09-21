@@ -192,8 +192,22 @@ def test_rate_limit_stops_all_repairs_and_does_not_log_secrets(tmp_path):
         run(cfg, account, NOW + dt.timedelta(minutes=1))
     assert account['vue'].get_chart_usage.call_count == 1
     assert 'private-token' not in str(warning.call_args)
-    assert warning.call_args.args[1:] == ('HTTPError', 429)
+    assert warning.call_args.args[1:] == ('HTTPError', 429, 300)
     assert cfg['_telemetryRecovery'].db.execute('select count(*) from coverage').fetchone()[0] == 0
+
+
+def test_repeated_api_failures_back_off_globally_to_one_hour(tmp_path):
+    cfg, account, _ = setup(tmp_path)
+    account['vue'].get_chart_usage.side_effect = RuntimeError('private')
+    elapsed = 0
+    expected_delays = [300, 600, 1200, 2400, 3600, 3600]
+    for attempt, delay in enumerate(expected_delays, 1):
+        run(cfg, account, NOW + dt.timedelta(seconds=elapsed))
+        store = cfg['_telemetryRecovery']
+        assert store.control('failure_attempts') == attempt
+        assert store.control('cooldown') == int(NOW.timestamp()) + elapsed + delay
+        elapsed += delay
+    assert account['vue'].get_chart_usage.call_count == len(expected_delays)
 
 
 def test_hourly_outage_repairs_all_missing_hours(tmp_path):
@@ -243,6 +257,40 @@ def test_repeated_partial_retries_do_not_accumulate_duplicate_deferrals(tmp_path
     store.record(points(account, channel, NOW + dt.timedelta(minutes=1))
                  + points(account, channel, NOW + dt.timedelta(minutes=2)))
     assert store.db.execute('select count(*) from deferred').fetchone()[0] == 0
+
+
+def test_unavailable_interval_persists_and_successful_samples_supersede_it(tmp_path):
+    cfg, account, channel = setup(tmp_path)
+    store = cfg['_telemetryRecovery']
+    key = store.key(account['name'], 42, '1', 'energy', Scale.MINUTE.value)
+    start = int(NOW.timestamp())
+    attempts = 0
+    for attempt in range(5):
+        attempts = store.defer(key, start, start + 180, start + attempt * 3600)
+    store.mark_unavailable(key, start, start + 180, start + 4 * 3600, attempts)
+    assert store.missing(key, start, start + 180, start + 5 * 3600, False) == []
+    assert store.db.execute('select attempts, reason from unavailable').fetchone() == (
+        5, 'empty_after_retries')
+
+    store.close()
+    recovery.initialize(cfg)
+    store = cfg['_telemetryRecovery']
+    assert store.missing(key, start, start + 180, start + 5 * 3600, False) == []
+    store.record(points(account, channel, NOW + dt.timedelta(minutes=1)))
+    assert store.missing(key, start, start + 180, start + 5 * 3600, False) == []
+    assert store.db.execute('select start, stop from unavailable').fetchall() == [
+        (start, start + 60), (start + 120, start + 180)]
+
+
+def test_empty_recovery_marks_interval_unavailable_at_configured_threshold(tmp_path):
+    cfg, account, _ = setup(tmp_path)
+    cfg['_telemetryRecovery'].settings['unavailableAfterAttempts'] = 1
+    account['vue'].get_chart_usage.return_value = ([], None)
+    run(cfg, account)
+    store = cfg['_telemetryRecovery']
+    assert store.db.execute('select count(*) from deferred').fetchone()[0] == 0
+    assert store.db.execute('select attempts, reason from unavailable').fetchone() == (
+        1, 'empty_after_retries')
 
 
 def test_configuration_validation_and_disabled_dryrun(tmp_path):

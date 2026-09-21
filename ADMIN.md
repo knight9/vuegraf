@@ -54,6 +54,12 @@ jobs fetch completed intervals; durable recovery fills missed intervals.
 Existing `--historydays` collection is tracked as a startup history job. Admin
 mode refuses `--dryrun` and `--resetdatabase`.
 
+Recovery status separates retryable gaps from permanently unavailable source
+intervals. Five empty responses, with exponential backoff between them, mark
+only the affected account/device/channel/metric/resolution interval unavailable
+in `/opt/vuegraf/state/coverage.sqlite3`; it then stops consuming recovery
+requests. A later successful write supersedes overlapping unavailable coverage.
+
 ## AI access and exports
 
 Visit `/api-docs` and `/api/openapi.json` for examples and schemas. Endpoints:

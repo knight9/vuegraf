@@ -20,7 +20,8 @@ settings = JSON.parse(File.read('deploy/collector-settings.json'))
 if recovery_test || admin_test
   settings.fetch('telemetry')['recovery'] = {
     'enabled' => true, 'statePath' => '/opt/vuegraf/state/coverage.sqlite3',
-    'initialLookbackSecs' => admin_test ? 3600 : 60, 'maxRequestsPerCycle' => 12, 'pauseSecs' => 0.2
+    'initialLookbackSecs' => admin_test ? 3600 : 60, 'maxRequestsPerCycle' => 3,
+    'unavailableAfterAttempts' => 5, 'pauseSecs' => 0.2
   }
 end
 if admin_test
