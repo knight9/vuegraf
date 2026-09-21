@@ -40,10 +40,16 @@ def specification():
         '/api/status': {'get': operation('Cached collection/storage status; never triggers Emporia')},
         '/api/discovery': {'get': operation('Circuit IDs, units and resolutions')},
         '/api/coverage': {'get': operation('Cached first/last timestamps by circuit, metric and resolution; gaps may exist')},
+        '/api/collect/minute': {'post': operation('Admit the native minute collection loop if idle; no queue', {},
+            responses={'202': {'description': 'Admitted job'}, '409': {'description': 'Busy/not ready with current status'}})},
         '/api/collect/second': {'post': operation('Admit one collection if idle; no queue', {
             'lookback_seconds': {'type': 'integer', 'minimum': 1, 'maximum': 10800, 'default': 3600},
             'circuits': {'type': 'array', 'maxItems': 64, 'items': {'type': 'string'}}
         }, responses={'202': {'description': 'Admitted job'}, '409': {'description': 'Busy/not ready with current status'}})},
+        '/api/collect/hour': {'post': operation('Admit the native completed-hour collection loop if idle; no queue', {},
+            responses={'202': {'description': 'Admitted job'}, '409': {'description': 'Busy/not ready with current status'}})},
+        '/api/collect/day': {'post': operation('Admit the native previous-local-day collection loop if idle; no queue', {},
+            responses={'202': {'description': 'Admitted job'}, '409': {'description': 'Busy/not ready with current status'}})},
         '/api/export': {'post': operation('CSV: maximum 100000 rows, 32 MiB, 15 seconds, two concurrent exports', {
             'start': {'type': 'string', 'format': 'date-time'}, 'stop': {'type': 'string', 'format': 'date-time'},
             'resolution': {'type': 'string', 'enum': list(RESOLUTIONS), 'default': 'minute'},
@@ -90,9 +96,10 @@ def specification():
                                 'first': time_schema, 'last': time_schema}}}}}}
     for path, schema in [('/api/status', 'Status'), ('/api/discovery', 'Discovery'), ('/api/coverage', 'Coverage')]:
         paths[path]['get']['responses']['200']['content'] = {'application/json': {'schema': {'$ref': '#/components/schemas/' + schema}}}
-    paths['/api/collect/second']['post']['responses']['202']['content'] = {
-        'application/json': {'schema': {'$ref': '#/components/schemas/Job'}}}
-    return {'openapi': '3.0.3', 'info': {'title': 'VueGraf admin API', 'version': '1.0'},
+    for kind in ('minute', 'second', 'hour', 'day'):
+        paths[f'/api/collect/{kind}']['post']['responses']['202']['content'] = {
+            'application/json': {'schema': {'$ref': '#/components/schemas/Job'}}}
+    return {'openapi': '3.0.3', 'info': {'title': 'VueGraf admin API', 'version': '1.1'},
             'security': [{'basicAuth': []}],
             'components': {'securitySchemes': {'basicAuth': {'type': 'http', 'scheme': 'basic'}}, 'schemas': schemas}, 'paths': paths}
 
@@ -217,6 +224,11 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError('Unknown circuit IDs')
                 job = self.server.controller.admit('second', 'manual', {'circuits': circuits, 'lookback_seconds': seconds})
                 self.send(202, job)
+            elif path in ('/api/collect/minute', '/api/collect/hour', '/api/collect/day'):
+                if request:
+                    raise ValueError('This collection type does not accept parameters')
+                kind = path.rsplit('/', 1)[-1]
+                self.send(202, self.server.controller.admit(kind, 'manual'))
             elif path == '/api/export':
                 if not self.server.downloads.acquire(blocking=False):
                     raise BlockingIOError()

@@ -6,6 +6,16 @@ import time
 import requests
 
 
+def wait_for_idle(session, base, kind, timeout=30):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        status = session.get(base + '/api/status', timeout=5).json()
+        if not status['active'] and status['jobs'][kind]['last_result']:
+            return status
+        time.sleep(.2)
+    raise AssertionError(f'{kind} collection did not complete: {status}')
+
+
 def main():
     base = 'http://127.0.0.1:18080'
     session = requests.Session()
@@ -33,12 +43,13 @@ def main():
     assert job.status_code == 202, job.text
     busy = session.post(base + '/api/collect/second', json=request, headers=headers, timeout=5)
     assert busy.status_code == 409, busy.text
-    deadline = time.monotonic() + 30
-    while time.monotonic() < deadline:
-        status = session.get(base + '/api/status', timeout=5).json()
-        if not status['active']:
-            break
-        time.sleep(.2)
+    status = wait_for_idle(session, base, 'second')
+    for kind in ('hour', 'day', 'minute'):
+        job = session.post(base + f'/api/collect/{kind}', json={}, headers=headers, timeout=5)
+        assert job.status_code == 202, job.text
+        assert job.json()['kind'] == kind
+        status = wait_for_idle(session, base, kind)
+        assert status['jobs'][kind]['last_result'] == 'success', status['jobs'][kind]
     assert status['jobs']['second']['last_result'] == 'success', status['jobs']['second']
     details = status['jobs']['second']['details']
     response = session.post(base + '/api/export', headers=headers, timeout=20, json={
@@ -54,7 +65,7 @@ def main():
     assert buckets['minutes-test'] == [730 * 86400]
     assert buckets['coarse-test'] == [1825 * 86400]
     assert session.get(base + '/api/openapi.json', timeout=5).json()['openapi'] == '3.0.3'
-    print('PASS: authentication, CSRF, mutex/no queue, successful manual seconds, exact CSV values, routed retention buckets, OpenAPI')
+    print('PASS: authentication, CSRF, mutex/no queue, manual minute/second/hour/day loops, exact CSV values, routed retention buckets, OpenAPI')
     print('Fixture uses fake data only; production and Emporia were not contacted.')
 
 

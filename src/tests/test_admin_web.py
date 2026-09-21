@@ -45,7 +45,24 @@ def test_status_static_and_openapi(server):
     assert '<pre id="storage"' not in page.text
     assert '<pre id="recovery"' not in page.text
     assert session.get(url + '/admin.js', timeout=3).status_code == 200
-    assert session.get(url + '/api/openapi.json', timeout=3).json() == specification()
+    spec = session.get(url + '/api/openapi.json', timeout=3).json()
+    assert spec == specification()
+    for kind in ('minute', 'second', 'hour', 'day'):
+        assert f'/api/collect/{kind}' in spec['paths']
+
+
+@pytest.mark.parametrize('kind', ('minute', 'hour', 'day'))
+def test_manual_native_collection_endpoints(server, kind):
+    session, url, controller = server
+    endpoint = url + f'/api/collect/{kind}'
+    headers = {'X-Vuegraf-Request': '1'}
+    assert session.post(endpoint, json={'unexpected': True}, headers=headers, timeout=3).status_code == 400
+    response = session.post(endpoint, json={}, headers=headers, timeout=3)
+    assert response.status_code == 202
+    assert response.json()['kind'] == kind
+    assert response.json()['source'] == 'manual'
+    assert response.json()['parameters'] == {}
+    assert controller.snapshot()['active']['kind'] == kind
 
 
 def test_csrf_busy_and_unknown_circuit(server):

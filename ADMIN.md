@@ -38,10 +38,13 @@ State-changing requests require JSON, a same-origin browser request and
 or database-deletion API is provided. HTTP connections are capped at 16.
 
 The UI polls cached status once a second, stops after five minutes without
-interaction, shows active/paused and last-checked time, and resumes with Check
-now. Stopping polling never stops collection. Manual second refresh accepts
-selected circuits and 1–10800 seconds of lookback. All collection kinds share
-one admission mutex. Unavailable data is reported as partial, not invented.
+interaction, shows active/paused and last-checked time, and has a stateful
+pause/resume/retry control. Stopping polling never stops collection. Manual
+controls expose the existing minute, second, hour and day loops. Second refresh
+accepts selected circuits and 1–10800 seconds of lookback; the other controls use
+their native current-minute, completed-hour and previous-local-day periods. All
+collection kinds share one admission mutex. Unavailable data is reported as
+partial, not invented.
 Success markers are not advanced after write failure. Job status is in memory
 and resets on process restart; the recovery coverage ledger remains durable.
 
@@ -67,7 +70,9 @@ Visit `/api-docs` and `/api/openapi.json` for examples and schemas. Endpoints:
 - `GET /api/discovery`: circuit IDs, names, units and resolution/query limits.
 - `GET /api/coverage`: observed first/last stored samples, cached five minutes;
   these bounds do not assert that every intermediate timestamp exists.
-- `POST /api/collect/second`: 202 admitted, 409 busy with current status; no queue.
+- `POST /api/collect/minute`, `/second`, `/hour`, `/day`: 202 admitted, 409 busy
+  with current status; all share one mutex and no queue. Minute/hour/day accept
+  an empty JSON object; second accepts its documented circuit/lookback options.
 - `POST /api/export`: CSV for one resolution/field, optional account/device/channel
   filters, raw or bounded aggregation. Output caps: 100000 rows, 32 MiB, 15-second
   query budget, two concurrent query/download slots. Temporary files are removed

@@ -1,12 +1,30 @@
 'use strict';
 const el = id => document.getElementById(id);
-let lastActivity = Date.now(), timer, inFlight = false, catalogSignature = '', lastChecked = null;
+const collectionButtonIds = ['collect-minute','collect','collect-hour','collect-day'];
+let lastActivity = Date.now(), timer, inFlight = false, manuallyPaused = false, pollFailed = false;
+let catalogSignature = '', lastChecked = null;
 const activeWindow = 5 * 60 * 1000;
-const active = () => Date.now() - lastActivity < activeWindow;
-function activity() { lastActivity = Date.now(); if (!timer && !inFlight) poll(); }
+const active = () => !manuallyPaused && !pollFailed && Date.now() - lastActivity < activeWindow;
+function activity(event) {
+  if (event && event.target && event.target.id === 'check') return;
+  lastActivity = Date.now();
+  if (!manuallyPaused && !pollFailed && !timer && !inFlight) poll();
+}
 document.addEventListener('pointerdown', activity);
 document.addEventListener('keydown', activity);
-el('check').addEventListener('click', () => { lastActivity = Date.now(); clearTimeout(timer); timer = null; poll(); });
+el('check').addEventListener('click', () => {
+  if (active()) {
+    manuallyPaused = true;
+    clearTimeout(timer); timer = null;
+    el('check').textContent = 'Resume status updates';
+    el('polling').textContent = `Status polling paused manually. Last checked: ${format(lastChecked)}. Collection continues.`;
+  } else {
+    manuallyPaused = false; pollFailed = false; lastActivity = Date.now();
+    clearTimeout(timer); timer = null;
+    el('check').textContent = 'Pause status updates';
+    poll();
+  }
+});
 function format(value) { return value ? new Date(value).toLocaleString() : '—'; }
 function duration(seconds) {
   if (!Number.isFinite(seconds)) return '—';
@@ -30,14 +48,20 @@ async function poll() {
   if (inFlight) return;
   clearTimeout(timer);
   timer = null;
-  if (!active()) { el('polling').textContent = `Status polling paused after five minutes of inactivity. Last checked: ${format(lastChecked)}. Collection continues.`; return; }
+  if (!active()) {
+    el('check').textContent = pollFailed ? 'Retry status check' : 'Resume status updates';
+    if (!manuallyPaused && !pollFailed) el('polling').textContent = `Status polling paused after five minutes of inactivity. Last checked: ${format(lastChecked)}. Collection continues.`;
+    return;
+  }
   inFlight = true;
   try {
     const status = await (await api('/api/status')).json(); lastChecked = Date.now();
+    pollFailed = false;
+    el('check').textContent = 'Pause status updates';
     el('polling').textContent = `Status polling active · every second · last checked ${format(lastChecked)}`;
     el('active').textContent = status.active ? `Running ${status.active.kind} (${status.active.source}) · ${status.active.phase || 'collection'} · ${status.active.progress.completed}/${status.active.progress.total ?? '?'} batches` : status.ready ? 'Collector idle' : `Collector unavailable: ${status.error || 'initializing'}`;
     el('legacy').textContent = `Legacy energy_usage recording: ${status.legacy_energy_enabled ? 'enabled' : 'disabled'}`;
-    el('collect').disabled = !status.ready || Boolean(status.active);
+    collectionButtonIds.forEach(id => { el(id).disabled = !status.ready || Boolean(status.active); });
     el('jobs').replaceChildren();
     Object.entries(status.jobs).forEach(([kind, job]) => {
       const row = document.createElement('tr');
@@ -67,8 +91,12 @@ async function poll() {
       const retention = bucket.unlimited ? 'Unlimited' : Array.isArray(rules) && rules.length ? rules.map(duration).join(', ') : 'Unknown';
       addRow(el('retention'), [bucket.name, (bucket.resolutions || []).join(', ') || 'legacy only', retention, bucket.contains_legacy ? 'Yes' : 'No']);
     });
-  } catch (error) { el('polling').textContent = `Status check failed: ${error.message}. Last checked: ${format(lastChecked)}`; }
-  finally { inFlight = false; timer = setTimeout(poll, 1000); }
+  } catch (error) {
+    pollFailed = true;
+    el('check').textContent = 'Retry status check';
+    el('polling').textContent = `Status check failed: ${error.message}. Last checked: ${format(lastChecked)}`;
+  }
+  finally { inFlight = false; if (active()) timer = setTimeout(poll, 1000); }
 }
 el('collect').addEventListener('click', async () => {
   el('collect').disabled = true;
@@ -76,6 +104,14 @@ el('collect').addEventListener('click', async () => {
   catch(error) { el('message').textContent = error.message; }
   finally { poll(); }
 });
+['minute','hour','day'].forEach(kind => el(`collect-${kind}`).addEventListener('click', async () => {
+  collectionButtonIds.forEach(id => { el(id).disabled = true; });
+  try {
+    const job = await (await api(`/api/collect/${kind}`, {})).json();
+    el('message').textContent = `Admitted ${kind}-data job ${job.id}.`;
+  } catch(error) { el('message').textContent = error.message; }
+  finally { poll(); }
+}));
 const now = new Date(); el('stop').value = now.toISOString(); el('start').value = new Date(now.getTime()-3600000).toISOString();
 el('export').addEventListener('click', async () => {
   el('export').disabled = true;

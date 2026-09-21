@@ -4,10 +4,26 @@
 curl -u "$VUEGRAF_ADMIN_USERNAME:$VUEGRAF_ADMIN_PASSWORD" http://HOST:8080/api/status
 curl -u "$VUEGRAF_ADMIN_USERNAME:$VUEGRAF_ADMIN_PASSWORD" http://HOST:8080/api/coverage</pre>
 <p>Status reads are cached and do not contact Emporia. Circuits have opaque IDs, account/device/channel identifiers and display names. Available history varies by circuit; a successful collection does not imply complete source coverage.</p></section>
-<section><h2>One-shot second refresh</h2><pre>curl -u "$VUEGRAF_ADMIN_USERNAME:$VUEGRAF_ADMIN_PASSWORD" \
+<section><h2>One-shot collection</h2><pre># Current minute (also runs bounded recovery and refreshes cached storage/coverage)
+curl -u "$VUEGRAF_ADMIN_USERNAME:$VUEGRAF_ADMIN_PASSWORD" \
+  -H 'Content-Type: application/json' -H 'X-Vuegraf-Request: 1' \
+  -d '{}' http://HOST:8080/api/collect/minute
+
+# Last completed UTC hour
+curl -u "$VUEGRAF_ADMIN_USERNAME:$VUEGRAF_ADMIN_PASSWORD" \
+  -H 'Content-Type: application/json' -H 'X-Vuegraf-Request: 1' \
+  -d '{}' http://HOST:8080/api/collect/hour
+
+# Previous local calendar day (using the configured collector timezone)
+curl -u "$VUEGRAF_ADMIN_USERNAME:$VUEGRAF_ADMIN_PASSWORD" \
+  -H 'Content-Type: application/json' -H 'X-Vuegraf-Request: 1' \
+  -d '{}' http://HOST:8080/api/collect/day
+
+# Bounded second refresh
+curl -u "$VUEGRAF_ADMIN_USERNAME:$VUEGRAF_ADMIN_PASSWORD" \
   -H 'Content-Type: application/json' -H 'X-Vuegraf-Request: 1' \
   -d '{"lookback_seconds":300,"circuits":[]}' http://HOST:8080/api/collect/second</pre>
-<p>202 means admitted; 409 means busy/not ready and includes current status. There is no job queue. Empty circuits selects all; otherwise use IDs from discovery. Maximum lookback is 10,800 seconds. Poll status to distinguish running, success, partial, failed and interrupted results. Missing/unsupported samples are not zeros.</p></section>
+<p>These are the same minute, second, hour and day loops used by the scheduler. A manual run does not postpone the next scheduled run. 202 means admitted; 409 means busy/not ready and includes current status. All types share one collector mutex and there is no job queue. For seconds, empty circuits selects all; otherwise use IDs from discovery. Maximum lookback is 10,800 seconds. Poll status to distinguish running, success, partial, failed and interrupted results. Missing/unsupported samples are not zeros.</p></section>
 <section><h2>Download data for tools</h2><pre>curl -u "$VUEGRAF_ADMIN_USERNAME:$VUEGRAF_ADMIN_PASSWORD" \
   -H 'Content-Type: application/json' -H 'X-Vuegraf-Request: 1' \
   -d '{"start":"2026-09-19T00:00:00Z","stop":"2026-09-19T01:00:00Z","resolution":"minute","field":"power_watts","aggregate":"mean","window":"5m"}' \

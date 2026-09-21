@@ -1,7 +1,9 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VueGraf Admin</title><link rel="stylesheet" href="/admin.css"><script src="/admin.js" defer></script></head>
 <body><header><h1>VueGraf Admin</h1><a href="/api-docs">API / AI access</a></header>
-<main><section><h2>Collection</h2><p id="polling" role="status">Connecting…</p><button id="check">Check now</button><p id="message" role="status"></p>
+<main><section><h2>Collection</h2><p id="polling" role="status">Connecting…</p><button id="check">Pause status updates</button><p class="hint">This controls only the admin page's status display, not collection.</p><p id="message" role="status"></p>
 <p id="active"></p><p id="legacy"></p><table><thead><tr><th>Type</th><th>State</th><th>Last result</th><th>Last completed</th><th>Last success</th><th>Next run</th></tr></thead><tbody id="jobs"></tbody></table>
+<h3>Run a collection loop now</h3><p>Each button runs the same collection loop used by the scheduler. Only one collection can run at a time, and requests are not queued. Manual runs do not postpone the next scheduled run.</p>
+<div class="actions"><button id="collect-minute">Fetch current minute</button><button id="collect-hour">Fetch last completed hour</button><button id="collect-day">Fetch previous local day</button></div>
 <h3>Fetch second data once</h3><p>Runs only when the collector is idle. Busy requests are not queued. This does not enable continuous live collection.</p>
 <label>Circuits (none selected means all)<select id="circuits" multiple size="6"></select></label>
 <label>Lookback seconds <input id="lookback" type="number" min="1" max="10800" value="3600"></label><button id="collect">Fetch latest 1-second data</button>

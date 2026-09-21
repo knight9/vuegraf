@@ -71,6 +71,57 @@ def test_manual_range_does_not_advance_full_schedule_or_activate_account_recover
     value.repair.assert_not_called()
 
 
+@patch('vuegraf.admin_runtime.writeDataPoints')
+@patch('vuegraf.admin_runtime.collectUsage')
+def test_manual_minute_uses_native_loop_and_recovery(collect, write):
+    value, _, _ = runtime()
+    value.repair = MagicMock()
+    value.storage.refresh = MagicMock(return_value={'status': 'ok'})
+    value.next_coverage = float('inf')
+
+    result = value.execute({'kind': 'minute', 'source': 'manual', 'parameters': {}})
+
+    assert result['result'] == 'success'
+    assert collect.call_args.args[2] is None
+    assert collect.call_args.args[7] == '1MIN'
+    value.repair.assert_called_once()
+    value.storage.refresh.assert_called_once()
+    write.assert_called_once()
+
+
+@patch('vuegraf.admin_runtime.writeDataPoints')
+@patch('vuegraf.admin_runtime.collectUsage')
+def test_manual_hour_uses_last_completed_hour(collect, write):
+    value, _, _ = runtime()
+
+    result = value.execute({'kind': 'hour', 'source': 'manual', 'parameters': {}})
+
+    start, stop, scale = collect.call_args.args[2], collect.call_args.args[3], collect.call_args.args[7]
+    assert result['result'] == 'success'
+    assert scale == '1H'
+    assert start == stop
+    assert start.minute == start.second == start.microsecond == 0
+    assert dt.timedelta(minutes=59) < dt.datetime.now(dt.UTC) - start < dt.timedelta(hours=2)
+    write.assert_called_once()
+
+
+@patch('vuegraf.admin_runtime.writeDataPoints')
+@patch('vuegraf.admin_runtime.collectUsage')
+def test_manual_day_uses_previous_local_day(collect, write):
+    value, _, _ = runtime()
+    expected = (value.previous_day - dt.timedelta(days=1)).astimezone(dt.UTC)
+
+    result = value.execute({'kind': 'day', 'source': 'manual', 'parameters': {}})
+
+    start, stop, scale = collect.call_args.args[2], collect.call_args.args[3], collect.call_args.args[7]
+    assert result['result'] == 'success'
+    assert scale == '1D'
+    assert start == stop
+    assert start == expected
+    assert (start.hour, start.minute, start.second, start.microsecond) == (23, 59, 59, 0)
+    write.assert_called_once()
+
+
 @patch('vuegraf.admin_runtime.recover')
 def test_repair_status_separates_permanently_unavailable_intervals(recover, tmp_path):
     value, account, _ = runtime()
