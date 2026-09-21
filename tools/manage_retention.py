@@ -7,6 +7,7 @@ import argparse
 import datetime as dt
 import hashlib
 import json
+import sys
 from collections import defaultdict
 
 from influxdb_client import Point
@@ -82,6 +83,9 @@ def migrate(config, resolution, start, stop, apply=False):
                 report['verified_rows'] += expected[0]
                 report['windows'] += 1
                 left = right
+                percent = 100 * (left - start).total_seconds() / (stop - start).total_seconds()
+                print(f'Migration progress: resolution={resolution} windows={report["windows"]} '
+                      f'through={left.isoformat()} percent={percent:.1f}', file=sys.stderr, flush=True)
     return report
 
 

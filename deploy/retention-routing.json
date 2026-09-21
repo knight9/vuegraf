@@ -1,0 +1,10 @@
+{
+  "influxDb": {
+    "telemetryBuckets": {
+      "second": "vuegraf-seconds",
+      "minute": "vuegraf-minutes",
+      "hour": "vuegraf-coarse",
+      "day": "vuegraf-coarse"
+    }
+  }
+}
