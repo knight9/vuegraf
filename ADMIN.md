@@ -147,8 +147,10 @@ a database restored to older data.
    migrate --resolution minute --start UTC_START --stop UTC_STOP --apply`.
    At most 31 days per invocation; source stays intact. The stop must be at least
    five minutes old, and the start must fit target retention with a one-hour
-   safety margin. Copy is chunked, idempotent and compares ordered record hashes
-   and counts. Without `--apply`, this command verifies existing copies only.
+   safety margin. Copy is chunked into one-hour second, 12-hour minute, and
+   20-day coarse windows; writes remain capped at 1,000 points. It is idempotent
+   and compares ordered record hashes and counts. Without `--apply`, this command
+   verifies existing copies only.
 4. Generate separate dashboard files with `ruby scripts/route-grafana-buckets.rb
    CONFIG INPUT_DASHBOARDS NEW_OUTPUT_DIR`. Review the output; the original
    dashboards are not overwritten. Queries choose buckets using the existing

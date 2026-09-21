@@ -29,7 +29,12 @@ def migrate(config, resolution, start, stop, apply=False):
         raise ValueError('At most 31 days per invocation; migrate longer ranges in separate runs')
     tag, *tags = getInfluxTag(config)
     detail = dict(zip(RETENTION, tags))[resolution]
-    chunk = {'second': 60, 'minute': 3600, 'hour': 86400, 'day': 7 * 86400}[resolution]
+    # The scanner already caps write memory at 1,000 points. Use source-safe
+    # history windows here rather than one native sample window per query;
+    # otherwise even a few days of second data needs thousands of Influx round
+    # trips during a verified migration.
+    chunk = {'second': 3600, 'minute': 12 * 3600,
+             'hour': 20 * 86400, 'day': 20 * 86400}[resolution]
     keys = ['account_name', 'device_gid', 'channel_num', tag]
 
     def query(bucket, left, right):
