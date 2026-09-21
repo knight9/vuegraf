@@ -1,5 +1,28 @@
 # Admin release deployment
 
+## Manual collection controls update
+
+Deployed through the Portainer UI on 2026-09-20 at approximately 23:36
+America/Los_Angeles (2026-09-21 06:36 UTC).
+
+- Source commit: `975999b` (`Add manual collection controls to admin UI`)
+- Image: `knight9/vuegraf-telemetry:admin-2026-09-20-r3`
+- Image ID: `sha256:a0052bdbd00260a90ca6c54f610a76e2943b14e0543ed68765f61adb44cfa9ca`
+- The authenticated UI/API now exposes the existing minute, second, hour and
+  day collection loops as one-shot manual actions.
+- All actions retain the single-worker mutex and no-queue behavior. Manual
+  actions do not postpone scheduled collection.
+- Status polling now has explicit pause, resume and retry states; pausing the
+  page does not pause collection.
+
+Only the `vuegraf` and `storage-monitor` image tags changed from `r2` to `r3`.
+Credentials, ports, mounts, retention routing and Grafana configuration were
+unchanged. The linux/amd64 archive was hash-verified before loading. Post-update,
+both containers used the expected image ID, the storage monitor was healthy,
+and authenticated status reported ready/idle, 40 circuits, a successful minute
+job, legacy recording disabled and a complete storage scan. InfluxDB and Grafana
+remained healthy. The prior `r2` image remains available for rollback.
+
 ## Retention and bounded-recovery update
 
 Deployed through the Portainer UI on 2026-09-20 at approximately 22:24
