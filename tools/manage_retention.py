@@ -73,7 +73,12 @@ def migrate(config, resolution, start, stop, apply=False):
                 expected = scan(client, source, left, right, writer if apply else None)
                 actual = scan(client, target, left, right)
                 if expected != actual:
-                    raise ValueError('Verification mismatch; source preserved. Do not cut over or delete data.')
+                    fields = sorted(name for name in set(expected[1]) | set(actual[1])
+                                    if expected[1].get(name) != actual[1].get(name))
+                    raise ValueError(
+                        'Verification mismatch; source preserved. Do not cut over or delete data. '
+                        f'window={left.isoformat()}..{right.isoformat()} '
+                        f'source_rows={expected[0]} target_rows={actual[0]} fields={fields}')
                 report['verified_rows'] += expected[0]
                 report['windows'] += 1
                 left = right
