@@ -72,7 +72,7 @@ dashboard = {
         'multi' => false,
         'name' => 'detail',
         'options' => [],
-        'query' => 'Minute : False,Second : True',
+        'query' => 'Minute : False,Second : True,Hour : Hour,Day : Day',
         'type' => 'custom'
       },
       {

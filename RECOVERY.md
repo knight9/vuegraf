@@ -1,8 +1,8 @@
-# Telemetry gap recovery (opt-in)
+# Telemetry gap recovery
 
-The new recovery path supplements existing collection; it does not replace the
-scheduler or implement the admin API. It is disabled unless explicitly enabled.
-No production configuration is changed by this feature branch.
+The recovery path supplements existing collection; it does not replace the
+scheduler. It is disabled unless explicitly enabled. Production enables it and
+exposes cached progress through the authenticated admin API/UI.
 
 ```json
 "telemetry": {
@@ -22,9 +22,9 @@ No production configuration is changed by this feature branch.
 ## Persistence and correctness
 
 Mount a persistent writable directory at `/opt/vuegraf/state`, owned by the
-container UID/GID (1012). The local integration Compose file supplies a named
-volume; the configuration mount remains read-only. Production would require a
-separately reviewed mount and configuration change. Never put the ledger in
+container UID/GID (1012). Both the local integration and reviewed production
+stack supply a persistent named volume; the configuration mount remains
+read-only. Never put the ledger in
 `/tmp`, the read-only config directory, or the image's ephemeral writable layer.
 The SQLite file contains coverage metadata, not credentials or readings.
 
@@ -92,8 +92,9 @@ still determines whether a hole can be filled.
 
 The main collector still has its original sequential loop and post-cycle wait.
 Repair adds bounded work; it does not promise exact wall-clock minute polling
-or data Emporia never supplied. Legacy recording and the proposed retention
-changes are separate TODO items and are not enabled/disabled by recovery.
+or data Emporia never supplied. Legacy recording and resolution retention are
+separate settings; production currently disables legacy recording and routes
+telemetry by resolution.
 
 Offline tests use temporary ledgers, fake Emporia responses, and mocked writes.
 Run `python -m pytest src/tests -q` in the development environment. Live local

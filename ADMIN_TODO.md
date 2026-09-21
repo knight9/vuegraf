@@ -1,10 +1,9 @@
 # Admin web page TODO
 
-Recovery is deployed. The admin/controller/API, legacy switch, storage visibility,
-and retention tooling are implemented locally but are **not deployed**. See
-`ADMIN.md` for setup, tests, constraints and the non-destructive migration plan.
-The original requirements below remain the acceptance checklist; unchecked items
-must not be read as claims that the production release includes these features.
+Recovery, the admin/controller/API, legacy switch, storage visibility, and
+resolution-specific retention are deployed. See `ADMIN.md` for setup, tests,
+constraints and the non-destructive migration record. The checklist below is
+the acceptance record for the production release.
 
 ## Current implementation checkpoint
 
@@ -19,9 +18,12 @@ must not be read as claims that the production release includes these features.
 - [x] Real-Emporia local acceptance: a one-circuit 60-second manual refresh
   succeeded, exported 60 power samples, and existing Grafana query checks passed
   with legacy recording disabled. Real local collector stopped afterward.
-- [ ] Operator notification destination, if out-of-band warnings are wanted.
-- [ ] Production migration/cutover review and approval; no source data deletion authorized.
-- [ ] Hard filesystem quota selection/enforcement remains an infrastructure decision.
+- [x] UI low-space warning deployed. No out-of-band destination was supplied, so
+  the optional webhook remains disabled and no external service is contacted.
+- [x] Production migration/cutover reviewed, approved and deployed; no source
+  data was deleted or retention-shortened.
+- [x] Hard-quota decision recorded: no filesystem quota is configured. Retention,
+  host-free-space monitoring and bounded container logs are the active controls.
 - [x] Isolated, network-free storage monitor with read-only InfluxDB access;
   collector UID 1012 receives only size statistics, not database files.
 
@@ -31,52 +33,43 @@ explicitly reports no verified hard quota rather than inventing one.
 
 ## Priority 1: Automatic telemetry gap recovery
 
-Implementation in progress on `feature/telemetry-gap-recovery`: opt-in persistent
-coverage ledger and bounded repair are implemented. Offline regressions and a
-disposable local InfluxDB/container-restart test pass. Live local testing also
-verified recovery after a five-minute outage and a long second-data batch,
-second coverage within the configured recovery window, and working Grafana
-panels. See `RECOVERY.md` for results and remaining source/coverage limitations.
-Production rollout completed on 2026-09-19; see `deploy/RECOVERY_RELEASE.md`.
-Initial production writes/recovery and dashboard rendering passed; the first
-scheduled production second-data batch remains to be verified.
+Implemented and deployed with persistent coverage, bounded repair, explicit
+unavailable intervals and shared admin status. See `RECOVERY.md` and
+`deploy/RECOVERY_RELEASE.md`. The production collector keeps normal Emporia
+access sequential and routes recovered data to the resolution retention buckets.
 
-Complete this before the admin UI/API work. The default telemetry minute path
-still records snapshots without recovery unless the opt-in feature is enabled;
-legacy `energy_usage` recovery does not fill those telemetry gaps.
-
-- [ ] Track durable, successfully written collection boundaries per account,
+- [x] Track durable, successfully written collection boundaries per account,
   device/channel, metric, and resolution. Restore recovery state after restart;
   do not infer complete coverage solely from the newest sample timestamp.
-- [ ] Fetch missing completed intervals in bounded batches, prioritizing minute
+- [x] Fetch missing completed intervals in bounded batches, prioritizing minute
   gaps after long second-data jobs. Respect existing source-history limits
   (currently seven days for minutes and three hours for seconds); local retention
   windows do not extend what Emporia can return.
-- [ ] Handle missed hourly/daily intervals as well as minutes and seconds;
+- [x] Handle missed hourly/daily intervals as well as minutes and seconds;
   preserve timezone and daylight-saving boundaries.
-- [ ] Advance successful boundaries only after database writes succeed. Track
+- [x] Advance successful boundaries only after database writes succeed. Track
   partial failures and unavailable source intervals explicitly, with bounded
   retries/backoff so missing source data cannot create an endless request loop.
-- [ ] Preserve sequential Emporia access and idempotent writes, and expose
+- [x] Preserve sequential Emporia access and idempotent writes, and expose
   recovery progress, remaining gaps, and failures through the later status API.
-- [ ] Test slow collection cycles, outages/restarts, partial API/write failures,
+- [x] Test slow collection cycles, outages/restarts, partial API/write failures,
   unavailable readings, and overlapping retries. Verify recovered telemetry in
   the dashboards without relying on legacy recording or a full history import.
 
 ## Collection controls and status
 
-- [ ] Show separate status for second, minute, hourly, daily, and historical
+- [x] Show separate status for second, minute, hourly, daily, and historical
   collection: idle/running, trigger source, progress, requested range, last
   start/completion, last result/error, last successful completion, data collected
   through, and next scheduled run where applicable.
-- [ ] Add a one-shot "Fetch latest 1-second data" button, not continuous live
+- [x] Add a one-shot "Fetch latest 1-second data" button, not continuous live
   polling. Bound requests to available history and allow circuit selection.
-- [ ] Use a collector-owned mutex shared by manual, scheduled, and historical
+- [x] Use a collector-owned mutex shared by manual, scheduled, and historical
   second-data collection. Return the active job status when busy; do not queue
   duplicate requests. Preserve sequential Emporia access.
-- [ ] Share successful collection boundaries and schedule the next second-data
+- [x] Share successful collection boundaries and schedule the next second-data
   batch from successful completion. Do not advance success markers on failure.
-- [ ] Poll one combined status endpoint every second while the page is active.
+- [x] Poll one combined status endpoint every second while the page is active.
   Pause after five minutes without user interaction; polling does not count as
   activity. Show active/paused and last-checked time. "Check now" immediately
   checks status and resumes the active window. Pausing UI polling must not stop
@@ -84,70 +77,70 @@ legacy `energy_usage` recovery does not fill those telemetry gaps.
 
 ## Unified admin API and AI data access
 
-- [ ] Make every admin UI function available through the same documented API;
+- [x] Make every admin UI function available through the same documented API;
   the UI is a client of that API. Include collection status/control, storage and
   retention visibility, and data discovery/export. Do not add a separate
   read-only role or separate AI credentials: the single authenticated user can
   access all supported admin functions. This does not imply arbitrary shell,
   Docker, or database-administration access.
-- [ ] Configure the admin username and password through Docker Compose YAML
+- [x] Configure the admin username and password through Docker Compose YAML
   environment settings (for example, `VUEGRAF_ADMIN_USERNAME` and
   `VUEGRAF_ADMIN_PASSWORD`). Require authentication for both the UI and API,
   fail closed when credentials are missing, and never log or return credentials.
   Do not commit real passwords or bake them into the image.
-- [ ] Target personal home-network use only, with no public exposure. Document
+- [x] Target personal home-network use only, with no public exposure. Document
   LAN binding/firewall requirements and that plain HTTP does not encrypt
   credentials or data; revisit transport/security before any external exposure.
   Protect browser-initiated state changes against CSRF, avoid permissive CORS,
   and use non-GET methods for actions that change state.
-- [ ] Add a clearly linked "API / AI access" page and machine-readable OpenAPI
+- [x] Add a clearly linked "API / AI access" page and machine-readable OpenAPI
   specification. Document authentication, every UI-backed endpoint, parameters,
   response schemas, busy/error responses, and executable request examples with
   credential placeholders. AI clients should not need SSH or Docker access.
-- [ ] Expose circuit IDs/display names, metrics/units, resolutions, available
+- [x] Expose circuit IDs/display names, metrics/units, resolutions, available
   date coverage, timezone conventions, and missing-data semantics. Explain how
   to avoid double-counting across resolutions and merged circuits/mains.
-- [ ] Provide parameterized queries and downloadable CSV exports for file-based
+- [x] Provide parameterized queries and downloadable CSV exports for file-based
   analysis, with documented aggregation semantics. Stream bounded exports;
   use tracked asynchronous export jobs only if larger exports require them.
   Export jobs are separate from the no-queue collection mutex policy.
-- [ ] Validate query parameters instead of accepting arbitrary Flux. Limit
+- [x] Validate query parameters instead of accepting arbitrary Flux. Limit
   output size, query duration, date ranges by resolution, and concurrent exports.
   If exports use temporary files, cap their total storage and expire them.
-- [ ] Test authentication, API/UI parity, busy-job behavior, export accuracy,
+- [x] Test authentication, API/UI parity, busy-job behavior, export accuracy,
   limits, and documentation examples. MCP remains optional; HTTP and file
   exports are the initial AI integration.
 
 ## Legacy energy collection configuration
 
-- [ ] Add a boolean `legacyEnergyEnabled` configuration option, defaulting to
+- [x] Add a boolean `legacyEnergyEnabled` configuration option, defaulting to
   `true` for backward compatibility. Setting it to `false` must stop legacy
   `energy_usage` collection and writes for every resolution and historical
   backfills while preserving `electrical_telemetry` collection.
-- [ ] Skip legacy-only API requests and resume queries when disabled; retain
+- [x] Skip legacy-only API requests and resume queries when disabled; retain
   shared requests needed by telemetry. Do not delete existing legacy records.
-- [ ] Show whether legacy collection is enabled on the admin status page.
-- [ ] Test enabled, disabled, and omitted-option behavior across normal and
+- [x] Show whether legacy collection is enabled on the admin status page.
+- [x] Test enabled, disabled, and omitted-option behavior across normal and
   historical collection, and verify both telemetry dashboards still work.
   Document the option and rebuild the image before configuring it locally or
-  in production; the current image does not implement this switch.
+  in production; the production image implements and disables this switch.
 
 ## Space usage and retention
 
-- [ ] Show InfluxDB disk usage, host filesystem capacity/used/free space, and
+- [x] Show InfluxDB disk usage, host filesystem capacity/used/free space, and
   measurement timestamp. Distinguish database usage from total host usage.
-- [ ] Show any configured hard quota, remaining allowance, and utilization;
+- [x] Show any configured hard quota, remaining allowance, and utilization;
   explicitly show "No quota configured" when no enforced limit exists.
-- [ ] Show the actual retention period for every bucket and its resolutions,
+- [x] Show the actual retention period for every bucket and its resolutions,
   including legacy `energy_usage`. Clearly flag unlimited retention.
-- [ ] Display storage growth trends and estimated time to quota/disk exhaustion
+- [x] Display storage growth trends and estimated time to quota/disk exhaustion
   when enough observations exist; label estimates and their observation window.
-- [ ] Design storage warning thresholds and notification delivery. Show whether
+- [x] Design storage warning thresholds and notification delivery. Show whether
   alerts are configured and their destination; a UI banner alone is not an
   out-of-band notification. Monitor host free space as well as database usage.
-- [ ] Implement resolution-specific retention using separate buckets as needed.
+- [x] Implement resolution-specific retention using separate buckets as needed.
   The user-selected target windows below replace the earlier proposals; they
-  are requirements for implementation, not settings already active in production:
+  are active in production:
 
   | Resolution | Target retention |
   | --- | --- |
@@ -156,11 +149,11 @@ legacy `energy_usage` recovery does not fill those telemetry gaps.
   | Hourly | 5 years |
   | Daily | 5 years |
 
-- [ ] Plan collector routing, Grafana bucket selection, existing-data migration,
+- [x] Plan collector routing, Grafana bucket selection, existing-data migration,
   and legacy-data handling together. Test locally and verify copied data before
   production cutover. Obtain explicit approval before deleting redundant data
   or applying retention changes that expire existing records.
-- [ ] Explain that retention cleanup is asynchronous and is not a byte quota;
+- [x] Explain that retention cleanup is asynchronous and is not a byte quota;
   quota exhaustion can cause writes to fail. Account separately for backups and
   container logs outside the database directory.
 

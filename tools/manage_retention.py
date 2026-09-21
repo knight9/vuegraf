@@ -10,12 +10,19 @@ import json
 import sys
 from collections import defaultdict
 
-from influxdb_client import Point
+from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
 
-from vuegraf.admin_data import client_for, parse_time
+from vuegraf.admin_data import parse_time
 from vuegraf.config import getInfluxTag
 from vuegraf.storage import RETENTION, provision, validate_routing
+
+
+def migration_client(config):
+    """Management queries may exceed the admin API's 15-second export budget."""
+    db = config['influxDb']
+    return InfluxDBClient(url=db['url'], token=db['token'], org=db['org'],
+                          verify_ssl=db.get('ssl_verify', True), timeout=300000)
 
 
 def migrate(config, resolution, start, stop, apply=False):
@@ -44,12 +51,21 @@ def migrate(config, resolution, start, stop, apply=False):
                 f' |> filter(fn: (r) => r._measurement == "electrical_telemetry" and r[{json.dumps(tag)}] == {json.dumps(detail)})'
                 ' |> group(columns: ["_field"]) |> sort(columns: ' + json.dumps(['_time', *keys]) + ')')
 
-    def scan(client, bucket, left, right, writer=None):
-        digests, count, batch = defaultdict(hashlib.sha256), 0, []
+    def scan(client, bucket, left, right, writer=None, retain=False, required=None):
+        digests, field_counts, count, batch = defaultdict(hashlib.sha256), defaultdict(int), 0, []
+        fingerprints = defaultdict(set)
         for row in client.query_api().query_stream(query(bucket, left, right)):
             values = row.values
             identity = [row.get_time().isoformat(), *[values[key] for key in keys], row.get_field(), row.get_value()]
-            digests[row.get_field()].update((json.dumps(identity, separators=(',', ':'), ensure_ascii=True) + '\n').encode())
+            encoded = (json.dumps(identity, separators=(',', ':'), ensure_ascii=True) + '\n').encode()
+            field = row.get_field()
+            digests[field].update(encoded)
+            fingerprint = hashlib.sha256(encoded).digest()
+            if retain:
+                fingerprints[field].add(fingerprint)
+            if required is not None and field in required:
+                required[field].discard(fingerprint)
+            field_counts[field] += 1
             count += 1
             if writer:
                 point = Point('electrical_telemetry').time(row.get_time()).field(row.get_field(), row.get_value())
@@ -61,25 +77,29 @@ def migrate(config, resolution, start, stop, apply=False):
                     batch = []
         if batch:
             writer.write(bucket=target, record=batch)
-        return count, {field: digest.hexdigest() for field, digest in digests.items()}
+        return (count, {field: digest.hexdigest() for field, digest in digests.items()},
+                dict(field_counts), fingerprints)
 
-    report = {'source': source, 'target': target, 'applied': apply, 'verified_rows': 0, 'windows': 0}
-    with client_for(config) as client:
+    report = {'source': source, 'target': target, 'applied': apply,
+              'verified_rows': 0, 'target_extra_rows': 0, 'windows': 0}
+    with migration_client(config) as client:
         if client.buckets_api().find_bucket_by_name(target) is None:
             raise ValueError('Provision destination first')
         with client.write_api(write_options=SYNCHRONOUS) as writer:
             left = start
             while left < stop:
                 right = min(left + dt.timedelta(seconds=chunk), stop)
-                expected = scan(client, source, left, right, writer if apply else None)
-                actual = scan(client, target, left, right)
-                if expected != actual:
-                    fields = sorted(name for name in set(expected[1]) | set(actual[1])
-                                    if expected[1].get(name) != actual[1].get(name))
+                expected = scan(client, source, left, right, writer if apply else None, retain=True)
+                actual = scan(client, target, left, right, required=expected[3])
+                missing = sorted(field for field, fingerprints in expected[3].items()
+                                 if fingerprints)
+                if missing:
                     raise ValueError(
                         'Verification mismatch; source preserved. Do not cut over or delete data. '
                         f'window={left.isoformat()}..{right.isoformat()} '
-                        f'source_rows={expected[0]} target_rows={actual[0]} fields={fields}')
+                        f'source_rows={expected[0]} target_rows={actual[0]} fields={missing}')
+                if expected[:2] != actual[:2]:
+                    report['target_extra_rows'] += max(0, actual[0] - expected[0])
                 report['verified_rows'] += expected[0]
                 report['windows'] += 1
                 left = right

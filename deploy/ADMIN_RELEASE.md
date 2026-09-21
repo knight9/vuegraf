@@ -1,5 +1,22 @@
 # Admin release deployment
 
+## Retention and bounded-recovery update
+
+Deployed through the Portainer UI on 2026-09-20 at approximately 22:24
+America/Los_Angeles (2026-09-21 05:24 UTC). See `RETENTION_RELEASE.md` for the
+complete migration and validation record.
+
+- Image: `knight9/vuegraf-telemetry:admin-2026-09-20-r2`
+- Image ID: `sha256:e344b9dfd9349569043a6a7a96c9413ddb430bf0215e203bca11818a70ab2982`
+- Recovery requests per normal cycle: 3
+- Empty/unsupported interval attempts before permanent-unavailable status: 5
+- Resolution routing: seconds to `vuegraf-seconds`, minutes to
+  `vuegraf-minutes`, and hour/day to `vuegraf-coarse`
+- Grafana Resolution selector: Minute, Second, Hour, Day
+- Original unlimited `emporia` bucket retained unchanged for rollback
+
+## Initial admin release
+
 Deployed through the Portainer UI on 2026-09-20 at approximately 20:35
 America/Los_Angeles (2026-09-21 03:35 UTC).
 

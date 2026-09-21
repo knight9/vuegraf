@@ -1,7 +1,7 @@
-# Admin interface and retention (local implementation, not deployed)
+# Admin interface and retention
 
-The deployed recovery release remains unchanged. This implementation adds an
-opt-in admin runtime inside the same image/process: one collector worker owns
+The admin runtime and resolution-specific retention are deployed in production.
+The implementation runs inside the same image/process: one collector worker owns
 Emporia clients, writes and the SQLite ledger; bounded HTTP threads read cached
 status and admit a job only when that worker is idle. There is no collection
 queue. Normal installations without `VUEGRAF_ADMIN_ENABLED=true` keep the
@@ -17,8 +17,7 @@ fail closed. Set `VUEGRAF_ADMIN_BIND=0.0.0.0` inside Docker and publish only
 local credentials. Both local admin instances use `admin` / `admin` for testing
 and are published only on loopback. Never use these credentials in production.
 
-For the production VueGraf service, use this environment fragment when preparing
-the reviewed Portainer YAML (not applied yet):
+The production VueGraf service uses this reviewed Portainer environment shape:
 
 ```yaml
 environment:
@@ -26,11 +25,11 @@ environment:
   VUEGRAF_ADMIN_BIND: "0.0.0.0"
   VUEGRAF_ADMIN_PORT: "8080"
   VUEGRAF_ADMIN_USERNAME: "knight9"
-  VUEGRAF_ADMIN_PASSWORD: "" # Supply your password in Portainer YAML before deployment.
+  VUEGRAF_ADMIN_PASSWORD: "" # Stored privately in Portainer; never commit it.
 ```
 
-The empty production password deliberately fails startup until supplied. No
-production password is stored in this repository or defaulted to `admin`.
+The empty example deliberately fails startup until supplied. No production
+password is stored in this repository or defaulted to `admin`.
 
 The UI and API share HTTP Basic authentication. Keep it on the trusted LAN;
 HTTP transmits credentials/data without encryption. Do not expose it publicly.
@@ -149,8 +148,9 @@ a database restored to older data.
    five minutes old, and the start must fit target retention with a one-hour
    safety margin. Copy is chunked into one-hour second, 12-hour minute, and
    20-day coarse windows; writes remain capped at 1,000 points. It is idempotent
-   and compares ordered record hashes and counts. Without `--apply`, this command
-   verifies existing copies only.
+   and compares ordered record hashes and counts. After cutover, destination-only
+   repaired points are permitted only when every source identity and value is
+   still present. Without `--apply`, this command verifies existing copies only.
 4. Generate separate dashboard files with `ruby scripts/route-grafana-buckets.rb
    CONFIG INPUT_DASHBOARDS NEW_OUTPUT_DIR`. Review the output; the original
    dashboards are not overwritten. Queries choose buckets using the existing
@@ -161,6 +161,11 @@ a database restored to older data.
 6. Keep the source bucket and old dashboards for rollback. **No source deletion or
    retention-shortening step is automated.** Any later cleanup requires explicit
    approval. New bucket expiration does not reclaim old source copies.
+
+Production completed this cutover on 2026-09-20. All four resolution copies were
+verified, the original unlimited bucket remains available for rollback, and both
+Grafana dashboards route Minute, Second, Hour and Day to their retained buckets.
+See `deploy/RETENTION_RELEASE.md` for counts and acceptance evidence.
 
 ## Local tests (no production or Emporia requests)
 
@@ -200,11 +205,16 @@ The real-source local check succeeded with 300 telemetry values and all 60
 power samples exported; all six existing Grafana query checks passed with
 legacy recording disabled. The real local collector was stopped afterward.
 
-Final local rebuild passed 297 Python tests, polling tests, disposable API
+Final local rebuild passed 301 Python tests, polling tests, disposable API
 acceptance, migration replay, and 160 dashboard queries. Browser verification
 confirmed manual refresh changes from running to successful/idle without moving
 the scheduled second run. The isolated storage monitor resolves private-directory
 access without changing InfluxDB permissions or elevating the collector.
+
+The post-cutover migration regression also verifies a destination superset:
+additional recovery points may exist only in a retained bucket, while every
+legacy source identity and value must still be present. This keeps live recovery
+from being mistaken for a failed migration without weakening source-copy checks.
 
 Storage isolation was verified against both disposable and real-data local
 stacks using `python tools/verify_storage_monitor.py` (append
@@ -214,7 +224,8 @@ size. The latest real-source manual 60-second refresh returned 298 values and
 missing source sample. All six real Grafana queries passed afterward. The local
 real-data admin was verified at port 3001 and then stopped; its credentials
 are the `VUEGRAF_ADMIN_USERNAME/PASSWORD` entries in private `int/admin.env`.
-Production remains untouched. Stop the local collector and monitor after review:
+Production is independent of this local test stack. Stop the local collector and
+monitor after review:
 
 ```sh
 docker --context orbstack compose --env-file int/admin.env \
